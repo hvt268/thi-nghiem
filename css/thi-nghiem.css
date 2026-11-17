@@ -1,0 +1,87 @@
+/* ==========================================================================
+   GIAO DIỆN CHUNG CHO MỌI TRANG THÍ NGHIỆM  (css/thi-nghiem.css)
+   Mẫu: khung mô phỏng bên trái (.stage), bảng điều khiển bên phải rộng 360px (.panel).
+   Sửa ở đây là đổi giao diện của TẤT CẢ thí nghiệm. Việc riêng của từng trang
+   (màu vẽ cảnh, nhãn nổi, bảng số liệu trên khung mô phỏng...) đặt trong <style> của trang đó.
+
+   Cách dùng trong trang thí nghiệm (đặt trong <head>):
+     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
+     <link rel="stylesheet" href="../css/thi-nghiem.css?v=1">
+   Khung trang:
+     <div class="app"><div class="stage" id="stage">…</div><aside class="panel">…</aside></div>
+   ========================================================================== */
+
+/* ---------- Màu: sáng / tối (tự theo hệ thống; data-theme="light|dark" để ép) ---------- */
+:root{
+  --bg:#e8f0ef; --panel:#fbfdfc; --ink:#12262f; --mute:#4f6870; --line:#bcd0d2; --air:#0f9d84; --onacc:#fff;
+  --ctrl:#dbe8e6;
+  /* tên cũ mà một số trang vẫn dùng */
+  --fg:var(--ink); --muted:var(--mute); --accent:var(--air); --stage:var(--bg); --scene:var(--bg);
+  --fh:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",sans-serif; --fb:var(--fh);
+  color-scheme:light;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1f2a; --panel:#162f3d; --ink:#eef3f1; --mute:#9db3ba; --line:#2b4a5a; --air:#4fd1b5; --onacc:#0f1f2a; --ctrl:#1d3a49; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1f2a; --panel:#162f3d; --ink:#eef3f1; --mute:#9db3ba; --line:#2b4a5a; --air:#4fd1b5; --onacc:#0f1f2a; --ctrl:#1d3a49; color-scheme:dark}
+
+/* ---------- Khung trang ---------- */
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--fb);font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 360px;height:100%}
+.stage{position:relative;overflow:hidden;min-height:0;background:var(--bg)}
+.stage canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+.panel{overflow:auto;padding:16px 18px 24px;background:var(--panel);border-left:1px solid var(--line);min-width:0}
+.hint{position:absolute;left:14px;bottom:12px;right:14px;color:var(--mute);font-size:12px;pointer-events:none;z-index:10}
+.fallback{position:absolute;left:14px;right:14px;top:14px;padding:10px 12px;border-radius:10px;background:var(--panel);border:1px solid var(--line);font-size:13px}
+@media (max-width:760px){
+  .app{grid-template-columns:1fr;grid-template-rows:52% 48%}
+  .panel{border-left:0;border-top:1px solid var(--line)}
+  .hint{display:none}
+}
+
+/* ---------- Chữ ---------- */
+h1{font-size:20px;line-height:1.3;margin:0 0 4px;font-weight:700}
+h2{font-size:14px;margin:16px 0 6px;font-weight:700}
+p.sub{margin:0 0 12px;color:var(--mute);line-height:1.5}
+.note{margin:6px 0 0;font-size:12px;color:var(--mute)}
+
+/* ---------- Điều khiển ---------- */
+.row{margin:9px 0}
+.row label,.row .top{display:flex;justify-content:space-between;gap:8px;margin-bottom:3px}
+.row output,.row label b{font-weight:700;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--air);margin:0}
+.chips,.btns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin:6px 0}
+button,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
+button:hover{border-color:var(--air)}
+button:focus-visible,input:focus-visible,select:focus-visible,canvas:focus-visible{outline:2px solid var(--air);outline-offset:2px}
+button.on,button[aria-pressed="true"]{background:var(--air);color:var(--onacc);border-color:var(--air)}
+button.main{background:#c26a00;color:#fff;border-color:#c26a00;font-weight:700}
+button:disabled{opacity:.5;cursor:default}
+select{width:100%}
+input[type=text],input[type=number],input.pv-input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 6px}
+.ck,.chk,.check{display:flex;gap:8px;align-items:flex-start;margin:6px 0;cursor:pointer}
+.ck input,.chk input,.check input{accent-color:var(--air);margin:3px 0 0;flex:none}
+.check small{display:block;color:var(--mute);font-size:12px}
+.group{display:grid;gap:10px;min-width:0;margin:0 0 16px}
+.group .row{margin:0}
+.group>h2{margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+
+/* ---------- Số liệu ---------- */
+table{width:100%;border-collapse:collapse}
+td,th{padding:5px 0;border-bottom:1px solid var(--line);vertical-align:top;text-align:right}
+td:first-child,th:first-child{text-align:left}
+th{font-weight:700;font-size:12px}
+td small{display:block;color:var(--mute);font-size:11px}
+.readout{background:var(--ctrl);border-radius:8px;padding:10px 12px;display:grid;gap:6px}
+.kv{display:flex;justify-content:space-between;gap:8px}.kv span{color:var(--mute)}.kv b{font-variant-numeric:tabular-nums}
+.res{border-top:1px solid var(--line);padding-top:14px}
+.res p{margin:0 0 6px}
+.big{margin:10px 0 6px;padding:10px 12px;border-left:4px solid var(--air);background:color-mix(in srgb,var(--air) 12%,transparent)}
+.key{display:flex;align-items:center;gap:8px;margin:4px 0;color:var(--mute)}
+.key i{width:22px;height:4px;border-radius:2px;display:inline-block;flex:none}
+.hud{position:absolute;left:14px;top:14px;max-width:calc(100% - 28px);font-size:13px;padding:6px 12px;border-radius:10px;background:color-mix(in srgb,var(--panel) 85%,transparent);border:1px solid var(--line)}

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vật ném trong không khí: mô phỏng 3D</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="../css/thi-nghiem.css?v=1">
+<style>
+/* Riêng trang này: màu vẽ cảnh, nhãn nổi và bảng số liệu trên khung mô phỏng */
+:root{--vac:#d9483a;--v:#7a4fd1;--fc:#c26a00;--px:#2563eb;--py:#16a34a;--pz:#db2777}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--vac:#ff7a6b;--v:#c8a7ff;--fc:#ffb454;--px:#6ea8ff;--py:#5fd68a;--pz:#ff7ab8}}
+#labels{position:absolute;inset:0;pointer-events:none}
+.lb{position:absolute;transform:translate(-50%,-50%);font-size:13px;color:var(--ink);white-space:nowrap;padding:1px 6px;border-radius:4px;background:color-mix(in srgb,var(--bg) 72%,transparent)}
+.lb.tick{color:var(--mute);background:none;padding:0}
+.lb.dim{font-weight:700}
+#hudw{position:absolute;left:14px;top:14px;display:flex;flex-direction:column;gap:3px;max-width:calc(100% - 28px);font-size:13px;padding:6px 12px;border-radius:10px;background:color-mix(in srgb,var(--panel) 85%,transparent);border:1px solid var(--line)}
+#hudw span{color:var(--mute);margin-right:3px}
+#hudw b{font-weight:700;display:inline-block;min-width:5ch;text-align:right;white-space:nowrap;margin-right:7px;font-variant-numeric:tabular-nums}
+#hudw .pos b{min-width:6ch}
+#hudw b:nth-last-child(2){margin-right:3px}
+#hudw em{font-style:normal;color:var(--mute);font-size:12px}
+#hud,#hud0{display:flex;flex-wrap:wrap;align-items:baseline;row-gap:2px}
+#hud0{padding-bottom:4px;border-bottom:1px solid var(--line)}
+#hud0 b{min-width:0;margin-right:0}
+.g{display:flex;align-items:baseline;white-space:nowrap}
+.g+.g{margin-left:12px;padding-left:12px;border-left:1px solid var(--line)}
+.noz .zz{display:none}
+@media (max-width:760px){#hudw{max-width:calc(100% - 118px)}}
+</style>
+</head>
+<body>
+<div id="app" class="app">
+ <div id="stage" class="stage">
+  <canvas id="cv"></canvas><div id="labels"></div>
+  <div id="hudw">
+   <div id="hud0"><div class="g"><span>Độ cao h₀</span><b id="i-h0"></b></div><div class="g"><span>Vận tốc v₀</span><b id="i-v0"></b></div><div class="g"><span>Góc ném θ (so với phương ngang)</span><b id="i-th"></b></div></div>
+   <div id="hud">
+    <div class="g"><span>t</span><b id="h-t"></b><em>s</em></div>
+    <div class="g pos"><span style="color:var(--px)">x</span><b id="h-x"></b><span style="color:var(--py)">y</span><b id="h-y"></b><span class="zz" style="color:var(--pz)">z</span><b class="zz" id="h-z"></b><em>m</em></div>
+    <div class="g"><span style="color:var(--px)">vx</span><b id="h-vx"></b><span style="color:var(--py)">vy</span><b id="h-vy"></b><span class="zz" style="color:var(--pz)">vz</span><b class="zz" id="h-vz"></b><span style="color:var(--v)">v</span><b id="h-v"></b><em>m/s</em></div>
+   </div>
+  </div>
+  <div class="hint" id="hint">Kéo để xoay · cuộn hoặc chụm hai ngón để thu phóng</div>
+ </div>
+ <div id="panel" class="panel">
+  <h1>Vật ném trong không khí</h1>
+  <p class="sub">Vật chịu trọng lực và lực cản không khí (tỉ lệ với v²), có thể có gió thổi ngang. So sánh với chuyển động trong chân không (parabol).</p>
+
+  <div class="row"><label for="obj">Vật được ném</label>
+   <select id="obj"><option value="bongda">Bóng đá (0,43 kg)</option><option value="tennis">Bóng tennis (58 g)</option><option value="golf" selected>Bóng golf (46 g)</option><option value="bongban">Bóng bàn (2,7 g)</option><option value="ta">Quả tạ 5 kg</option></select></div>
+  <div class="row"><label for="v0">Tốc độ ném v₀ <b id="o-v0"></b></label><input id="v0" type="range" min="1" max="80" step="0.5" value="45"></div>
+  <div class="row"><label>Kiểu ném</label><div class="chips" id="modes"><button data-m="ngang">Ném ngang (θ = 0°)</button><button data-m="xien" class="on">Ném xiên</button></div></div>
+  <div class="row"><label for="th">Góc ném xiên θ so với phương ngang <b id="o-th"></b></label><input id="th" type="range" min="1" max="90" step="1" value="35"></div>
+  <div class="row"><label for="ph">Hướng ném trong mặt phẳng ngang φ (so với trục x) <b id="o-ph"></b></label><input id="ph" type="range" min="-90" max="90" step="1" value="0"></div>
+  
+  <div class="row"><label for="h0">Độ cao lúc ném h₀ <b id="o-h0"></b></label><input id="h0" type="range" min="1" max="60" step="1" value="2"></div>
+  <div class="row"><label for="wind">Gió thổi theo trục z <b id="o-wind"></b></label><input id="wind" type="range" min="-20" max="20" step="0.5" value="8"></div>
+  <div class="row"><label for="g">Gia tốc trọng trường g <b id="o-g"></b></label><input id="g" type="range" min="1" max="25" step="0.01" value="9.81"></div>
+  <div class="chips" id="chips">
+   <button data-g="1.62">Mặt Trăng</button><button data-g="3.71">Sao Hỏa</button><button data-g="9.81" class="on">Trái Đất</button><button data-g="24.79">Sao Mộc</button>
+  </div>
+  <label class="ck"><input id="ck-air" type="checkbox" checked> Có lực cản không khí</label>
+  <label class="ck"><input id="ck-vac" type="checkbox" checked> Hiện vật trong chân không để so sánh</label>
+  <label class="ck"><input id="ck-pj" type="checkbox" checked> Hiện hình chiếu lên các trục x, y, z</label>
+  <label class="ck"><input id="ck-vec" type="checkbox" checked> Hiện vectơ vận tốc và các lực</label>
+
+  <div class="btns">
+   <button id="play" class="main">Phát</button><button id="replay">Phát lại</button><button id="refit">Căn khung</button>
+   <select id="speed" aria-label="Tốc độ mô phỏng" style="width:auto"><option value="0.25">0,25×</option><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+  </div>
+  <div class="row"><label for="scrub">Kéo để tua thời gian</label><input id="scrub" type="range" min="0" max="1000" value="0"></div>
+
+  <h2>Kết quả</h2>
+  <table>
+   <tr><th></th><th style="color:var(--vac)">Chân không</th><th style="color:var(--air)">Không khí</th></tr>
+   <tr><td>Thời gian bay</td><td id="a-t"></td><td id="b-t"></td></tr>
+   <tr><td>Tầm xa (ngang)</td><td id="a-L"></td><td id="b-L"></td></tr>
+   <tr><td>Độ cao cực đại</td><td id="a-H"></td><td id="b-H"></td></tr>
+   <tr><td>Tốc độ chạm đất</td><td id="a-v"></td><td id="b-v"></td></tr>
+   <tr><td>Góc chạm đất</td><td id="a-a"></td><td id="b-a"></td></tr>
+   <tr><td>Điểm rơi lệch so với chân không</td><td id="a-d"></td><td id="b-d"></td></tr>
+  </table>
+  <h2>Mô hình vật lý</h2>
+  <table>
+   <tr><td colspan="3">Chân không: a = (0; −g; 0), t = [v₀ᵧ + √(v₀ᵧ² + 2g·h₀)] / g, L = v₀ₓᵧ·t, H = h₀ + v₀ᵧ²/2g</td></tr>
+   <tr><td colspan="3">Không khí: m·a = m·g + F꜀, với F꜀ = −½·ρ·C·S·|v − u|·(v − u), ρ = 1,225 kg/m³, u là vận tốc gió. Giải số bằng phương pháp Runge–Kutta bậc 4, bước 5 ms.</td></tr>
+  </table>
+  <h2>Chú giải</h2>
+  <div class="key"><i style="background:var(--air)"></i>Quỹ đạo trong không khí (không đối xứng, rơi dốc hơn)</div>
+  <div class="key"><i style="background:var(--vac)"></i>Quỹ đạo trong chân không (parabol)</div>
+  <div class="key"><i style="background:var(--v)"></i>Vận tốc v (tiếp tuyến quỹ đạo)</div>
+  <div class="key"><i style="background:var(--vac)"></i>Trọng lực mg (luôn hướng xuống)</div>
+  <div class="key"><i style="background:var(--fc)"></i>Lực cản F꜀ (ngược hướng vận tốc so với không khí)</div>
+  <div class="key"><i style="background:var(--line)"></i><span id="k-dt"></span></div>
+  <div class="key"><i style="background:var(--ink)"></i>Số liệu (m, m/s) hiển thị ở bảng trên mô phỏng và bảng kết quả bên phải</div>
+  <div class="key"><i style="background:linear-gradient(90deg,var(--px) 33%,var(--py) 33% 66%,var(--pz) 66%)"></i>Hình chiếu của vật lên trục x, y, z (đoạn đậm trên mỗi trục là tọa độ hiện tại)</div>
+ </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const f=(n,d)=>n.toFixed(d).replace('.',',');
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+const OBJ={bongda:{m:.43,d:.22,cd:.25},tennis:{m:.058,d:.067,cd:.55},golf:{m:.0459,d:.0427,cd:.25},bongban:{m:.0027,d:.04,cd:.47},ta:{m:5,d:.12,cd:.47}};
+const P={obj:'golf',mode:'xien',v0:45,th:35,ph:0,h0:2,wind:8,g:9.81,air:true};
+let VAC,AIR,B={},tsim=0,playing=false,speed=1,last=0,Tmax=1;
+
+const cv=$('cv');
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(45,1,0.1,20000);
+scene.add(new THREE.HemisphereLight(0xffffff,0x556677,.95));
+const sun=new THREE.DirectionalLight(0xffffff,.8);sun.position.set(-30,80,60);scene.add(sun);
+const S=new THREE.Group();scene.add(S);
+const labels=[];
+
+/* physics: RK4 */
+function sim(air){
+ const {v0,ph,h0,g,wind}=P,th=P.mode==='ngang'?0:P.th,o=OBJ[P.obj],r=Math.PI/180;
+ const k=air?.5*1.225*o.cd*Math.PI*(o.d/2)**2/o.m:0;
+ let s=[0,h0,0,v0*Math.cos(th*r)*Math.cos(ph*r),v0*Math.sin(th*r),v0*Math.cos(th*r)*Math.sin(ph*r)];
+ const dt=.005,A=[s.slice()],T=[0];
+ const d=s=>{const rz=s[5]-wind,sp=Math.hypot(s[3],s[4],rz);return [s[3],s[4],s[5],-k*sp*s[3],-g-k*sp*s[4],-k*sp*rz];};
+ for(let i=1;i<40000;i++){
+  const k1=d(s),k2=d(s.map((a,j)=>a+k1[j]*dt/2)),k3=d(s.map((a,j)=>a+k2[j]*dt/2)),k4=d(s.map((a,j)=>a+k3[j]*dt));
+  const n=s.map((a,j)=>a+dt/6*(k1[j]+2*k2[j]+2*k3[j]+k4[j]));
+  if(n[1]<0){const q=s[1]/(s[1]-n[1]||1),e=s.map((a,j)=>a+(n[j]-a)*q);e[1]=0;A.push(e);T.push(T[T.length-1]+dt*q);break;}
+  s=n;A.push(n);T.push(i*dt);
+ }
+ const e=A[A.length-1];
+ return {A,T,k,dt,tf:T[T.length-1],x:e[0],z:e[2],L:Math.hypot(e[0],e[2]),H:Math.max(...A.map(a=>a[1])),vE:Math.hypot(e[3],e[4],e[5]),ang:Math.atan2(-e[4],Math.hypot(e[3],e[5]))*180/Math.PI};
+}
+function at(R,t){
+ const n=R.A.length;if(t>=R.tf)return R.A[n-1];
+ let i=Math.min(Math.floor(t/R.dt),n-2);const a=R.A[i],b=R.A[i+1],q=(t-R.T[i])/((R.T[i+1]-R.T[i])||1);
+ return a.map((v,j)=>v+(b[j]-v)*q);
+}
+
+/* dynamic objects */
+const ball=new THREE.Mesh(new THREE.SphereGeometry(1,32,20),new THREE.MeshStandardMaterial({roughness:.35}));
+const ghost=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),new THREE.MeshStandardMaterial({transparent:true,opacity:.7,roughness:.5}));
+const drop=new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(),V(0,1,0)]),new THREE.LineBasicMaterial({transparent:true,opacity:.6}));
+const trace=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial());
+trace.geometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(3*201),3));
+[drop,trace].forEach(o=>o.frustumCulled=false);
+const aV=new THREE.ArrowHelper(V(1,0,0),V(),1),aG=new THREE.ArrowHelper(V(0,-1,0),V(),1),aF=new THREE.ArrowHelper(V(1,0,0),V(),1);
+scene.add(ball,ghost,drop,trace,aV,aG,aF);
+const PJ=new THREE.Group(),PS=new THREE.Group();scene.add(PJ,PS);
+const mkSeg=(n,vc)=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(n*6),3));if(vc)g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(n*6),3));const l=new THREE.LineSegments(g,new THREE.LineBasicMaterial(vc?{vertexColors:true,transparent:true,opacity:.85}:{transparent:true,opacity:.4}));l.frustumCulled=false;PJ.add(l);return l;};
+const pPlane=mkSeg(3,false),pAxis=mkSeg(6,true),pSeg=mkSeg(3,true);
+const pDot=[0,1,2].map(()=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial());PJ.add(m);return m;});
+let pLab=[];
+
+function addLabel(text,pos,cls){const el=document.createElement('div');el.className='lb '+(cls||'');el.textContent=text;$('labels').appendChild(el);const o={el,pos};labels.push(o);return o;}
+function clearGroup(g){while(g.children.length){const c=g.children.pop();c.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});}}
+const niceStep=raw=>[1,2,5,10,20,50,100,200,500].find(s=>s>=raw)||500;
+
+function compute(){
+ VAC=sim(false);AIR=P.air?sim(true):VAC;
+ const all=[...VAC.A,...AIR.A];
+ const mn=[0,0,0],mx=[0,0,0];
+ all.forEach(a=>[0,1,2].forEach(i=>{mn[i]=Math.min(mn[i],a[i]);mx[i]=Math.max(mx[i],a[i]);}));
+ const ext=Math.max(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2],10);
+ B={mn,mx,size:ext,R:ext*.011};
+ Tmax=Math.max(VAC.tf,AIR.tf,.01);
+}
+
+const hasZ=()=>P.wind!==0||P.ph!==0; /* không gió và ném trong mặt phẳng xy thì z luôn = 0 → ẩn trục z */
+function buildStatic(){
+ clearGroup(S);clearGroup(PS);labels.splice(0).forEach(l=>l.el.remove());
+ const col=n=>new THREE.Color(css(n));
+ const bg=col('--bg'),line=col('--line'),cAir=col('--air'),cVac=col('--vac'),ink=col('--ink');
+ scene.background=bg;
+ ball.material.color.copy(ink);ghost.material.color.copy(cVac);drop.material.color.copy(line);trace.material.color.copy(cAir);
+ aV.setColor(col('--v'));aG.setColor(cVac);aF.setColor(col('--fc'));
+ const {size,R,mn,mx}=B,step=niceStep(size/7);
+ const x0=Math.floor(mn[0]/step-1)*step,x1=Math.ceil(mx[0]/step+1)*step,z0=Math.floor(mn[2]/step-1)*step,z1=Math.ceil(mx[2]/step+1)*step;
+ const gm=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,z1-z0),new THREE.MeshStandardMaterial({color:line.clone().lerp(bg,.55)}));
+ gm.rotation.x=-Math.PI/2;gm.position.set((x0+x1)/2,-size*.002,(z0+z1)/2);S.add(gm);
+ const gp=[];
+ for(let x=x0;x<=x1+1e-6;x+=step){gp.push(V(x,0,z0),V(x,0,z1));}
+ for(let z=z0;z<=z1+1e-6;z+=step){gp.push(V(x0,0,z),V(x1,0,z));}
+ S.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(gp),new THREE.LineBasicMaterial({color:line})));
+ 
+ const ln=(pts,mat)=>{const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),mat);S.add(l);return l;};
+ const fl=(a,b,c,o)=>ln([a,b],new THREE.LineBasicMaterial({color:c,transparent:true,opacity:o}));
+ /* launch pole */
+ if(P.h0>0){fl(V(0,0,0),V(0,P.h0,0),ink,1);}
+ /* vacuum dashed */
+ const vp=VAC.A.filter((_,i)=>i%4===0).map(a=>V(a[0],a[1],a[2]));vp.push(V(VAC.x,0,VAC.z));
+ const vl=ln(vp,new THREE.LineDashedMaterial({color:cVac,dashSize:size*.012,gapSize:size*.01}));vl.computeLineDistances();
+ /* air path + ground shadow */
+ if(P.air){
+  ln(AIR.A.filter((_,i)=>i%4===0).map(a=>V(a[0],a[1],a[2])).concat([V(AIR.x,0,AIR.z)]),new THREE.LineBasicMaterial({color:cAir,transparent:true,opacity:.35}));
+  ln(AIR.A.filter((_,i)=>i%4===0).map(a=>V(a[0],.001*size,a[2])),new THREE.LineBasicMaterial({color:ink,transparent:true,opacity:.35}));
+ }
+ ln(VAC.A.filter((_,i)=>i%4===0).map(a=>V(a[0],.001*size,a[2])),new THREE.LineBasicMaterial({color:cVac,transparent:true,opacity:.3}));
+ /* stroboscope on air path */
+ const dt=[.1,.2,.25,.5,1,2,5,10].find(c=>AIR.tf/c<=14)||10;
+ $('k-dt').textContent='Các chấm cách nhau Δt = '+f(dt,2)+' s; đường mờ trên sàn là hình chiếu quỹ đạo';
+ const sg=new THREE.SphereGeometry(1,12,8);
+ for(let k=0;k*dt<=AIR.tf+1e-9;k++){const a=at(AIR,k*dt);
+  const m=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:cAir}));m.scale.setScalar(R*.4);m.position.set(a[0],a[1],a[2]);S.add(m);
+  if(k>0)fl(V(a[0],a[1],a[2]),V(a[0],0,a[2]),line,.7);}
+ /* peak, landings */
+ const pk=AIR.A.reduce((p,a)=>a[1]>p[1]?a:p,AIR.A[0]);
+ fl(V(pk[0],0,pk[2]),V(pk[0],pk[1],pk[2]),ink,.6);
+ 
+ const ring=(x,z,c)=>{const m=new THREE.Mesh(new THREE.RingGeometry(R*1.4,R*1.9,32),new THREE.MeshBasicMaterial({color:c,side:THREE.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.set(x,size*.003,z);S.add(m);};
+ ring(AIR.x,AIR.z,cAir);
+ if(P.air){ring(VAC.x,VAC.z,cVac);}
+ /* projection axes */
+ const cpx=col('--px'),cpy=col('--py'),cpz=col('--pz');
+ const axl=(a,b,c)=>PS.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]),new THREE.LineBasicMaterial({color:c})));
+ 
+ [[cpx,[0,2]],[cpz,[1,5]],[cpy,[3,4]]].forEach(([c,ids])=>ids.forEach(i=>{const ca=pAxis.geometry.attributes.color;ca.setXYZ(2*i,c.r,c.g,c.b);ca.setXYZ(2*i+1,c.r,c.g,c.b);ca.needsUpdate=true;}));
+ [[cpx,0],[cpy,1],[cpz,2]].forEach(([c,i])=>{const ca=pSeg.geometry.attributes.color;ca.setXYZ(2*i,c.r,c.g,c.b);ca.setXYZ(2*i+1,c.r,c.g,c.b);ca.needsUpdate=true;pDot[i].material.color.copy(c);});
+ pPlane.material.color.copy(ink);
+ axl(V(0,AIR.H,0),V(pk[0],pk[1],pk[2]),cpy);
+ 
+ /* axes at origin */
+ const ax=size*.12;
+ [[V(1,0,0),Math.max(mx[0],size*.15)+step*.5,cpx,'x'],[V(0,1,0),Math.max(mx[1],size*.15)+step*.5,cpy,'y'],[V(0,0,1),Math.max(mx[2],size*.15)+step*.5,cpz,'z']].filter(a=>a[3]!=='z'||hasZ()).forEach(([d,len,c,n])=>{const hd=Math.min(size*.05,len*.3);S.add(new THREE.ArrowHelper(d,V(0,0,0),len,c.getHex(),hd,hd*.4));const o=addLabel(n,d.clone().multiplyScalar(len+hd*.9),'dim');o.el.style.color=c.getStyle();});
+ if(mn[0]<0)fl(V(0,0,0),V(mn[0]-step*.5,0,0),cpx,1);if(hasZ()&&mn[2]<0)fl(V(0,0,0),V(0,0,mn[2]-step*.5),cpz,1);
+ /* wind arrow */
+ if(P.wind!==0){const s=Math.sign(P.wind),a=new THREE.ArrowHelper(V(0,0,s),V(-size*.06,size*.1,-s*size*.1),size*.2*Math.min(1,Math.abs(P.wind)/10+.3),col('--fc').getHex(),size*.05,size*.025);S.add(a);}
+}
+
+function setResults(){
+ document.body.classList.toggle('noz',!hasZ());
+ $('o-v0').textContent=f(P.v0,1)+' m/s';$('o-th').textContent=(P.mode==='ngang'?0:P.th)+'°';$('o-ph').textContent=P.ph+'°';
+ $('o-h0').textContent=P.h0+' m';$('i-h0').textContent=f(P.h0,0)+' m';$('i-v0').textContent=f(P.v0,1)+' m/s';$('i-th').textContent=(P.mode==='ngang'?0:P.th)+'°';$('o-wind').textContent=f(P.wind,1)+' m/s';$('o-g').textContent=f(P.g,2)+' m/s²';
+ const row=(p,R,cmp)=>{$(p+'-t').textContent=f(R.tf,2)+' s';$(p+'-L').textContent=f(R.L,1)+' m';$(p+'-H').textContent=f(R.H,1)+' m';
+  $(p+'-v').textContent=f(R.vE,1)+' m/s';$(p+'-a').textContent=f(R.ang,1)+'°';$(p+'-d').textContent=cmp?f(Math.hypot(R.x-VAC.x,R.z-VAC.z),1)+' m':'—';};
+ row('a',VAC,false);row('b',AIR,P.air);
+ document.querySelectorAll('#chips button').forEach(b=>b.classList.toggle('on',Math.abs(+b.dataset.g-P.g)<.005));
+}
+
+/* orbit camera */
+let th=.6,ph=1.1,dist=100;const tgt=V();
+function setCam(){camera.position.set(tgt.x+dist*Math.sin(ph)*Math.sin(th),tgt.y+dist*Math.cos(ph),tgt.z+dist*Math.sin(ph)*Math.cos(th));camera.lookAt(tgt);}
+function fit(){
+ const a=camera.aspect||1,t=Math.tan(22.5*Math.PI/180),{mn,mx}=B;
+ tgt.set((mn[0]+mx[0])/2,(mx[1])*.3,(mn[2]+mx[2])/2);
+ const rad=Math.hypot(mx[0]-mn[0],mx[1],mx[2]-mn[2])/2;
+ dist=Math.max(rad*1.25/(t*Math.min(1,a)),20);setCam();
+}
+const ptr=new Map();let pd=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptr.set(e.pointerId,e);if(ptr.size===2){const [a,b]=[...ptr.values()];pd=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}});
+cv.addEventListener('pointermove',e=>{
+ if(!ptr.has(e.pointerId))return;const p=ptr.get(e.pointerId);
+ if(ptr.size===1){th-=(e.clientX-p.clientX)*.006;ph=Math.min(1.5,Math.max(.15,ph-(e.clientY-p.clientY)*.006));}
+ ptr.set(e.pointerId,e);
+ if(ptr.size===2){const [a,b]=[...ptr.values()],d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);if(pd>0&&d>0)dist*=pd/d;pd=d;}
+ dist=Math.min(Math.max(dist,5),15000);setCam();
+});
+['pointerup','pointercancel'].forEach(n=>cv.addEventListener(n,e=>ptr.delete(e.pointerId)));
+cv.addEventListener('wheel',e=>{e.preventDefault();dist=Math.min(Math.max(dist*Math.exp(e.deltaY*.001),5),15000);setCam();},{passive:false});
+function resize(){const w=$('stage').clientWidth,h=$('stage').clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();fit();}
+new ResizeObserver(resize).observe($('stage'));
+
+/* animation */
+function setArrow(a,dir,len,p,show){
+ a.visible=show&&len>1e-4&&dir.lengthSq()>0;if(!a.visible)return;
+ a.position.copy(p);a.setDirection(dir.clone().normalize());a.setLength(len,Math.min(len*.3,B.R*3),B.R*1.2);
+}
+function update(){
+ const {R,size}=B,a=at(AIR,Math.min(tsim,AIR.tf)),pos=V(a[0],a[1],a[2]);
+ ball.position.copy(pos);ball.scale.setScalar(R);
+ const gv=$('ck-vac').checked,vv=at(VAC,Math.min(tsim,VAC.tf));
+ ghost.visible=gv;ghost.position.set(vv[0],vv[1],vv[2]);ghost.scale.setScalar(R*.85);
+ const dp=drop.geometry.attributes.position;dp.setXYZ(0,a[0],0,a[2]);dp.setXYZ(1,a[0],a[1],a[2]);dp.needsUpdate=true;
+ const tp=trace.geometry.attributes.position,n=200,t=Math.min(tsim,AIR.tf);
+ for(let i=0;i<=n;i++){const q=at(AIR,t*i/n);tp.setXYZ(i,q[0],q[1],q[2]);}
+ tp.needsUpdate=true;trace.geometry.setDrawRange(0,n+1);
+ const o=OBJ[P.obj],sv=$('ck-vec').checked,k=AIR.k,rel=V(a[3],a[4],a[5]-P.wind),sp=rel.length();
+ const vmax=Math.max(P.v0,AIR.vE,1),speedV=Math.hypot(a[3],a[4],a[5]);
+ setArrow(aV,V(a[3],a[4],a[5]),speedV/vmax*size*.2,pos,sv);
+ const sF=size*.12/(o.m*P.g);
+ setArrow(aG,V(0,-1,0),size*.12,pos,sv);
+ const Fd=o.m*k*sp*sp;
+ setArrow(aF,rel.clone().multiplyScalar(-1),Math.min(Fd*sF,size*.4),pos,sv&&k>0);
+ $('h-t').textContent=f(t,2);$('h-y').textContent=f(a[1],1);$('h-x').textContent=f(a[0],1);$('h-z').textContent=f(a[2],1);$('h-v').textContent=f(speedV,1);
+ const pj=$('ck-pj').checked;PJ.visible=PS.visible=pj;pDot[2].visible=hasZ();
+ if(pj){const X=a[0],Y=a[1],Z=a[2];
+  const sp=(m,arr)=>{const p=m.geometry.attributes.position;arr.forEach((v,i)=>p.setXYZ(i,v[0],v[1],v[2]));p.needsUpdate=true;};
+  sp(pPlane,[[X,Y,Z],[X,0,Z],[X,Y,Z],[X,Y,0],[X,Y,Z],[0,Y,Z]]);
+  sp(pAxis,[[X,0,Z],[X,0,0],[X,0,Z],[0,0,Z],[X,Y,0],[X,0,0],[X,Y,0],[0,Y,0],[0,Y,Z],[0,Y,0],[0,Y,Z],[0,0,Z]]);
+  sp(pSeg,[[0,0,0],[X,0,0],[0,0,0],[0,Y,0],[0,0,0],[0,0,Z]]);
+  [[X,0,0],[0,Y,0],[0,0,Z]].forEach((p,i)=>{pDot[i].position.set(p[0],p[1],p[2]);pDot[i].scale.setScalar(R*.6);});
+  }
+ $('hud').style.display=tsim>0?'':'none';$('h-vx').textContent=f(a[3],1);$('h-vy').textContent=f(a[4],1);$('h-vz').textContent=f(a[5],1);
+ $('scrub').value=Math.round(Math.min(tsim,Tmax)/Tmax*1000);
+}
+function setPlay(p){playing=p;$('play').textContent=p?'Tạm dừng':'Phát';}
+function onParams(){compute();buildStatic();setResults();fit();tsim=0;setPlay(false);update();}
+const pr=V();
+function frame(now){
+ const dt=Math.min((now-last)/1000,.05);last=now;
+ if(playing){tsim+=dt*speed;if(tsim>=Tmax){tsim=Tmax;setPlay(false);}update();}
+ const w=renderer.domElement.clientWidth,h=renderer.domElement.clientHeight;
+ for(const l of labels){pr.copy(l.pos).project(camera);const vis=pr.z<1&&(!l.pj||$('ck-pj').checked);l.el.style.display=vis?'':'none';if(vis){l.el.style.left=((pr.x*.5+.5)*w)+'px';l.el.style.top=((-pr.y*.5+.5)*h)+'px';}}
+ renderer.render(scene,camera);requestAnimationFrame(frame);
+}
+
+/* wiring */
+['v0','th','ph','h0','wind','g'].forEach(id=>$(id).addEventListener('input',e=>{P[id]=+e.target.value;onParams();}));
+function setMode(m){P.mode=m;document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));$('th').disabled=m==='ngang';if(m==='ngang'&&P.h0<5){P.h0=30;$('h0').value=30;}onParams();}
+$('modes').addEventListener('click',e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m);});
+$('obj').addEventListener('change',e=>{P.obj=e.target.value;onParams();});
+$('ck-air').addEventListener('change',e=>{P.air=e.target.checked;onParams();});
+$('chips').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;P.g=+b.dataset.g;$('g').value=P.g;onParams();});
+$('play').addEventListener('click',()=>{if(!playing&&tsim>=Tmax)tsim=0;setPlay(!playing);});
+$('replay').addEventListener('click',()=>{tsim=0;setPlay(true);update();});
+$('refit').addEventListener('click',()=>{th=.6;ph=1.1;fit();});
+$('speed').addEventListener('change',e=>speed=+e.target.value);
+$('scrub').addEventListener('input',e=>{setPlay(false);tsim=e.target.value/1000*Tmax;update();});
+['ck-vac','ck-vec','ck-pj'].forEach(id=>$(id).addEventListener('change',update));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{buildStatic();update();});
+
+compute();resize();buildStatic();setResults();fit();update();
+requestAnimationFrame(t=>{last=t;frame(t);});
+</script>
+<script src="../data/ve-trang-chu.js" data-dx="360" data-bp="760" defer></script>
+</body>
+</html>

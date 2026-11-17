@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mô phỏng 3D: dòng điện cảm ứng</title>
+<meta name="description" content="Mô phỏng 3D hiện tượng cảm ứng điện từ: nam châm xuyên qua vòng dây, chiều dòng điện cảm ứng theo định luật Len-xơ, đường sức từ và vectơ vận tốc.">
+<meta property="og:title" content="Mô phỏng 3D: dòng điện cảm ứng">
+<meta property="og:description" content="Nam châm xuyên qua vòng dây, đường sức từ và chiều dòng điện cảm ứng theo định luật Len-xơ.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0a1319">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%B2%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600&display=swap">
+<link rel="stylesheet" href="../css/thi-nghiem.css?v=1">
+<style>
+/* Riêng trang này */
+.g{margin:0 0 14px}
+.g>span{display:block;color:var(--mute);font-size:13px;margin-bottom:5px}
+.row{display:flex;gap:10px;align-items:center;margin:0 0 16px}
+.row input{flex:1}
+.big{font-size:16px}
+</style>
+</head>
+<body>
+<noscript><p style="padding:20px">Cần bật JavaScript để xem mô phỏng.</p></noscript>
+<main class="app">
+  <div id="stage" class="stage"><canvas id="cv"></canvas><div class="hint">Kéo nền để xoay · kéo nam châm (hoặc vòng dây) để trượt tay · cuộn để phóng to</div></div>
+  <aside class="panel">
+    <h1>Dòng điện cảm ứng trong vòng dây</h1>
+    <div class="g"><span>Cực của nam châm hướng xuống (phía vòng dây)</span>
+      <div class="seg" data-k="pole"><button data-v="N" aria-pressed="true">Cực Bắc (N)</button><button data-v="S" aria-pressed="false">Cực Nam (S)</button></div></div>
+    <div class="g"><span>Vật chuyển động</span>
+      <div class="seg" data-k="mover"><button data-v="magnet" aria-pressed="true">Nam châm</button><button data-v="ring" aria-pressed="false">Vòng dây</button></div></div>
+    <div class="g"><span>Góc nhìn</span>
+      <div class="seg" data-k="view"><button data-v="top" aria-pressed="false">Từ trên</button><button data-v="tilt" aria-pressed="true">Nghiêng</button><button data-v="bottom" aria-pressed="false">Từ dưới</button></div></div>
+    <div class="g"><span>Số mặt phẳng từ trường (chéo nhau)</span>
+      <div class="seg" data-k="planes"><button data-v="1" aria-pressed="false">1</button><button data-v="2" aria-pressed="true">2</button><button data-v="4" aria-pressed="false">4</button><button data-v="6" aria-pressed="false">6</button><button data-v="8" aria-pressed="false">8</button></div></div>
+    <div class="g"><span>Vị trí mặt phẳng của hai loại đường sức</span>
+      <div class="seg" data-k="align"><button data-v="alt" aria-pressed="true">Xen kẽ</button><button data-v="same" aria-pressed="false">Trùng nhau</button></div></div>
+    <div class="g"><span>Số lớp đường sức mỗi mặt phẳng (gồm trục): <b id="lv">5</b></span>
+      <input id="lay" type="range" min="4" max="8" step="1" value="5" style="width:100%;accent-color:var(--accent)" aria-label="Số lớp đường sức mỗi mặt phẳng"></div>
+    <div class="row"><button id="play" style="min-width:104px">Tạm dừng</button><input id="spd" type="range" min="0.3" max="2" step="0.1" value="1" aria-label="Tốc độ"></div>
+    <label class="chk"><input type="checkbox" id="cm" checked> Đường sức từ của nam châm</label>
+    <label class="chk"><input type="checkbox" id="ci" checked> Đường sức từ của dòng cảm ứng</label>
+    <button id="hold" aria-pressed="false" style="width:100%;margin:6px 0 14px;touch-action:none;user-select:none">Hiện/ẩn dòng cảm ứng và vận tốc (khi tạm dừng)</button>
+    <div class="res" aria-live="off">
+      <p id="r0"></p><p id="r1"></p><p id="r2"></p><p id="r3"></p>
+      <p class="big" id="r4"></p><p id="r5"></p>
+      <p class="note">Nam châm (hoặc vòng dây) chuyển động qua lại, xuyên qua vòng dây liên tục. Mô phỏng chỉ hiển thị kết quả đúng theo định luật Len-xơ.</p>
+    </div>
+  </aside>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+var R=1.3,A=4.2,W0=0.6,BLUE=0x2f6bff,GREEN='#12a06a',FMAX=0.508;
+var st={pole:'N',mover:'magnet',view:'tilt',playing:true,speed:1,planes:2,layers:5,align:'alt'};
+var ph=0,inten=0,viewTarget=null,cache={},holdShow=false,lastInc=true,lastVelUp=false,dragging=false,dragU=0,prevU=0,duS=0;
+var $=function(i){return document.getElementById(i);};
+var okGL=false;try{okGL=typeof THREE!=='undefined'&&!!document.createElement('canvas').getContext('webgl');}catch(e){}
+if(!okGL){$('stage').innerHTML='<p style="padding:20px;color:var(--ink)">Không khởi tạo được WebGL hoặc không tải được thư viện Three.js. Hãy kiểm tra kết nối mạng và bật tăng tốc phần cứng của trình duyệt.</p>';return;}
+var cv=$('cv'),stage=$('stage');
+var renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+var scene=new THREE.Scene();
+var camera=new THREE.PerspectiveCamera(40,1,0.1,100);camera.position.set(0,6.5,12.5);
+var controls=new THREE.OrbitControls(camera,cv);
+controls.enableDamping=true;controls.enablePan=false;controls.minDistance=5;controls.maxDistance=26;
+controls.addEventListener('start',function(){viewTarget=null;});
+scene.add(new THREE.AmbientLight(0xffffff,0.75));
+var sun=new THREE.DirectionalLight(0xffffff,0.7);sun.position.set(4,8,6);scene.add(sun);
+
+function tex(l,bg,fg){var c=document.createElement('canvas');c.width=c.height=128;var g=c.getContext('2d');g.fillStyle=bg;g.fillRect(0,0,128,128);g.fillStyle=fg;g.font='700 76px "Be Vietnam Pro",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(l,64,70);return new THREE.CanvasTexture(c);}
+function sprite(draw,w){var c=document.createElement('canvas');c.width=c.height=128;draw(c.getContext('2d'));var s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));s.scale.set(w,w,1);s.renderOrder=10;return s;}
+function arrow(color,len,r){var g=new THREE.Group(),m=new THREE.MeshBasicMaterial({color:color});
+  var sh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,len-0.22,12),m);sh.position.y=(len-0.22)/2;
+  var hd=new THREE.Mesh(new THREE.ConeGeometry(r*3.2,0.26,16),m);hd.position.y=len-0.11;g.add(sh,hd);return g;}
+function tube(pts,mat,rad){return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),pts.length*2,rad,5),mat);}
+
+/* Trục */
+var axG=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,-6,0),new THREE.Vector3(0,6,0)]);
+var ax=new THREE.Line(axG,new THREE.LineDashedMaterial({color:0x8a98a5,dashSize:0.12,gapSize:0.1}));ax.computeLineDistances();scene.add(ax);
+
+/* Vòng dây */
+var ring=new THREE.Group();scene.add(ring);
+var tg=new THREE.TorusGeometry(R,0.035,16,128);tg.rotateX(Math.PI/2);
+ring.add(new THREE.Mesh(tg,new THREE.MeshStandardMaterial({color:0xb8651b,metalness:0.4,roughness:0.4})));
+var gg=new THREE.TorusGeometry(R,0.075,12,128);gg.rotateX(Math.PI/2);
+var glow=new THREE.Mesh(gg,new THREE.MeshBasicMaterial({color:BLUE,transparent:true,opacity:0}));ring.add(glow);
+var dg=new THREE.CircleGeometry(R,64);dg.rotateX(-Math.PI/2);
+ring.add(new THREE.Mesh(dg,new THREE.MeshBasicMaterial({color:0x7aa7ff,transparent:true,opacity:0.12,side:THREE.DoubleSide,depthWrite:false})));
+var NC=8,cones=[],coneMat=new THREE.MeshBasicMaterial({color:BLUE,transparent:true,opacity:0});
+for(var i=0;i<NC;i++){var c=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.3,16),coneMat);ring.add(c);cones.push(c);}
+var iLab=sprite(function(g){g.fillStyle='#2f6bff';g.font='italic 700 72px serif';g.textAlign='center';g.fillText('i',50,84);g.font='italic 700 42px serif';g.fillText('c',84,100);},0.5);
+iLab.position.set(R*1.18*Math.cos(Math.PI*0.75),0.3,-R*1.18*Math.sin(Math.PI*0.75));iLab.material.opacity=0;ring.add(iLab);
+
+/* Đường sức dòng cảm ứng: RK4 trên từ trường Biot-Savart của vòng dây tròn (dòng ngược chiều kim đồng hồ nhìn từ trên => B hướng lên trong lòng vòng) */
+var RB=5,V=THREE.Vector3,UP=new THREE.Vector3(0,1,0),tv=new THREE.Vector3();
+var indG=new THREE.Group();ring.add(indG);
+var indMat=new THREE.MeshBasicMaterial({color:BLUE,transparent:true,opacity:0,depthWrite:false}),indCones=[];
+var SN=180,SX=[],SZ=[],SDX=[],SDZ=[];
+for(var si=0;si<SN;si++){var sa=(si+0.5)*2*Math.PI/SN;SX.push(R*Math.cos(sa));SZ.push(-R*Math.sin(sa));SDX.push(-Math.sin(sa));SDZ.push(-Math.cos(sa));}
+function Bf(x,y){var bx=0,by=0;
+  for(var i=0;i<SN;i++){var rx=x-SX[i],rz=-SZ[i],d3=Math.pow(rx*rx+y*y+rz*rz,1.5)+1e-12;bx+=(-SDZ[i]*y)/d3;by+=(SDZ[i]*rx-SDX[i]*rz)/d3;}
+  var n=Math.hypot(bx,by)||1;return [bx/n,by/n];}
+function rk4(p,h){var k1=Bf(p[0],p[1]),k2=Bf(p[0]+k1[0]*h/2,p[1]+k1[1]*h/2),k3=Bf(p[0]+k2[0]*h/2,p[1]+k2[1]*h/2),k4=Bf(p[0]+k3[0]*h,p[1]+k3[1]*h);
+  return [p[0]+h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]),p[1]+h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1])];}
+/* Từ điểm (rho,0) trong lòng vòng đi theo chiều B: khép kín nếu quay lại mặt phẳng vòng lần thứ hai, ngược lại bị cắt ở mặt cầu bán kính RB (đường hở) */
+function fieldLine(rho){var p=[rho,0],pts=[[rho,0]],cross=0,closed=false;
+  for(var k=0;k<3000;k++){var dw=Math.hypot(p[0]-R,p[1]),h=Math.min(0.1,Math.max(0.02,0.35*dw)),q=rk4(p,h);
+    if(p[1]*q[1]<0){cross++;if(cross===2){closed=true;break;}}
+    pts.push(q);p=q;if(Math.hypot(q[0],q[1])>RB)break;}
+  if(closed)pts.push([rho,0]);
+  return {pts:pts,closed:closed};}
+function clearGroup(g){for(var i=g.children.length-1;i>=0;i--){var c=g.children[i];g.remove(c);if(c.geometry)c.geometry.dispose();}}
+var profCache={};
+function profile(n){if(profCache[n])return profCache[n];var out=[];
+  for(var j=1;j<n;j++){var rho=0.88*R*j/(n-1),fl=fieldLine(rho),F=fl.pts.filter(function(q,i){return i%2===0||i===fl.pts.length-1;}),ai=0;
+    if(fl.closed){F.forEach(function(q,i){if(q[1]>F[ai][1])ai=i;});}else ai=Math.max(1,Math.floor(F.length*0.4));
+    var i0=Math.max(ai-1,0),i1=Math.min(ai+1,F.length-1),tx=F[i1][0]-F[i0][0],ty=F[i1][1]-F[i0][1],tn=Math.hypot(tx,ty)||1,full=F;
+    if(!fl.closed){full=F.slice(1).map(function(q){return [q[0],-q[1]];}).reverse().concat(F);}
+    out.push({pts:full,ap:F[ai],tx:tx/tn,ty:ty/tn});}
+  return profCache[n]=out;}
+function addIndArrow(pos,t){var cn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.22,12),indMat);cn.position.copy(pos);indG.add(cn);indCones.push({m:cn,t:t});}
+function buildInduced(P,n){
+  clearGroup(indG);indCones.length=0;
+  var off=st.align==='same'?0:0.5,f0=off*Math.PI/P,ox=0.045*Math.cos(f0),oz=0.045*Math.sin(f0);
+  indG.add(tube([new V(ox,-RB,oz),new V(ox,0,oz),new V(ox,RB,oz)],indMat,0.014));
+  [-2.3,2.3].forEach(function(y){addIndArrow(new V(ox,y,oz),new V(0,1,0));});
+  profile(n).forEach(function(o){
+    for(var j=0;j<2*P;j++){var f=(j+off)*Math.PI/P,cf=Math.cos(f),sf=Math.sin(f);
+      indG.add(tube(o.pts.map(function(q){return new V(q[0]*cf,q[1],q[0]*sf);}),indMat,0.014));
+      addIndArrow(new V(o.ap[0]*cf,o.ap[1],o.ap[0]*sf),new V(o.tx*cf,o.ty,o.tx*sf));}
+  });}
+
+/* Nam châm */
+var magnet=new THREE.Group();scene.add(magnet);
+var mN=new THREE.MeshStandardMaterial({map:tex('N','#d62f2f','#ffffff')}),mS=new THREE.MeshStandardMaterial({map:tex('S','#f4f4f2','#222222')});
+var bg=new THREE.BoxGeometry(0.5,0.5,0.5),lo=new THREE.Mesh(bg,mN),hi=new THREE.Mesh(bg,mS);
+lo.position.y=-0.25;hi.position.y=0.25;magnet.add(lo,hi);
+magnet.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.5,1,0.5)),new THREE.LineBasicMaterial({color:0x222222})));
+/* Đường sức nam châm (lưỡng cực): r = L sin^2(t), t tính từ cực dưới; lớp đầu tiên là trục, các đường L > RB bị cắt (hở) */
+var magG=new THREE.Group();magnet.add(magG);
+var magMat=new THREE.MeshBasicMaterial({color:0xe0654f,transparent:true,opacity:0.5,depthWrite:false}),magCones=[];
+function addMagArrow(pos,t){var cn=new THREE.Mesh(new THREE.ConeGeometry(0.07,0.22,12),magMat);cn.position.copy(pos);magG.add(cn);magCones.push({m:cn,t:t});}
+function orientMag(){var sg=st.pole==='N'?1:-1;magCones.forEach(function(o){tv.copy(o.t).multiplyScalar(sg);o.m.quaternion.setFromUnitVectors(UP,tv);});}
+/* Nam châm = trụ từ hóa đều, tương đương ống dây hữu hạn (bán kính MA, dài 1): cộng từ trường của MM vòng dây bằng tích phân elliptic */
+var MA=0.25,MM=40,MY=[];for(var mk=0;mk<MM;mk++)MY.push(-0.5+(mk+0.5)/MM);
+function ellKE(m){var a=1,b=Math.sqrt(1-m),s=0.5*m,p=0.5;
+  for(var i=0;i<24;i++){var an=(a+b)/2,bn=Math.sqrt(a*b),cn=(a-b)/2;a=an;b=bn;p*=2;s+=p*cn*cn;if(Math.abs(cn)<1e-13)break;}
+  var K=Math.PI/(2*a);return [K,K*(1-s)];}
+function magB(x,y){var bx=0,by=0,rho=Math.max(Math.abs(x),1e-4),sg=x<0?-1:1;
+  for(var i=0;i<MM;i++){var z=y-MY[i],q=(MA+rho)*(MA+rho)+z*z,m=Math.min(4*MA*rho/q,1-1e-12),ke=ellKE(m),d=(MA-rho)*(MA-rho)+z*z+1e-12,sq=Math.sqrt(q);
+    by+=(ke[0]+(MA*MA-rho*rho-z*z)/d*ke[1])/sq;
+    bx+=sg*(z/rho)*(-ke[0]+(MA*MA+rho*rho+z*z)/d*ke[1])/sq;}
+  var n=Math.hypot(bx,by)||1;return [-bx/n,-by/n];}      /* cực N ở dưới: B trong nam châm hướng xuống */
+function rk4g(f,p,h){var k1=f(p[0],p[1]),k2=f(p[0]+k1[0]*h/2,p[1]+k1[1]*h/2),k3=f(p[0]+k2[0]*h/2,p[1]+k2[1]*h/2),k4=f(p[0]+k3[0]*h,p[1]+k3[1]*h);
+  return [p[0]+h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]),p[1]+h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1])];}
+/* từ điểm (rho,0) trong lòng nam châm đi theo B: khép kín nếu quay lại mặt phẳng giữa lần thứ hai, ngược lại bị cắt ở RB */
+function magLine(rho){var p=[rho,0],pts=[[rho,0]],cross=0,closed=false;
+  for(var k=0;k<4000;k++){var dw=Math.abs(p[1])<=0.5?Math.abs(p[0]-MA):Math.hypot(p[0]-MA,Math.abs(p[1])-0.5),h=Math.min(0.1,Math.max(0.012,0.4*dw)),q=rk4g(magB,p,h);
+    if(p[1]*q[1]<0){cross++;if(cross===2){closed=true;break;}}
+    pts.push(q);p=q;if(Math.hypot(q[0],q[1])>RB)break;}
+  if(closed)pts.push([rho,0]);
+  return {pts:pts,closed:closed};}
+var magProf={};
+function magProfile(n){if(magProf[n])return magProf[n];var out=[];
+  for(var j=1;j<n;j++){var rho=0.23*j/(n-1),fl=magLine(rho),F=fl.pts.filter(function(q,i){return i%2===0||i===fl.pts.length-1;}),ai=0;
+    if(fl.closed){F.forEach(function(q,i){if(q[0]>F[ai][0])ai=i;});}else ai=Math.max(1,Math.floor(F.length*0.5));
+    var i0=Math.max(ai-1,0),i1=Math.min(ai+1,F.length-1),tx=F[i1][0]-F[i0][0],ty=F[i1][1]-F[i0][1],tn=Math.hypot(tx,ty)||1,full=F;
+    if(!fl.closed){full=F.slice(1).map(function(q){return [q[0],-q[1]];}).reverse().concat(F);}
+    out.push({pts:full,ap:F[ai],tx:tx/tn,ty:ty/tn});}
+  return magProf[n]=out;}
+function buildMagnet(P,n){
+  clearGroup(magG);magCones.length=0;
+  magG.add(tube([new V(0,-RB,0),new V(0,0,0),new V(0,RB,0)],magMat,0.014));
+  [-2.3,2.3].forEach(function(y){addMagArrow(new V(0,y,0),new V(0,-1,0));});
+  magProfile(n).forEach(function(o){
+    for(var j=0;j<2*P;j++){var f=j*Math.PI/P,cf=Math.cos(f),sf=Math.sin(f);
+      magG.add(tube(o.pts.map(function(q){return new V(q[0]*cf,q[1],q[0]*sf);}),magMat,0.014));
+      addMagArrow(new V(o.ap[0]*cf,o.ap[1],o.ap[0]*sf),new V(o.tx*cf,o.ty,o.tx*sf));}
+  });
+  orientMag();}
+function rebuild(){var P=parseInt(st.planes),n=parseInt(st.layers);buildMagnet(P,n);buildInduced(P,n);}
+
+/* Vectơ vận tốc */
+var vG=new THREE.Group(),vArr=arrow(GREEN,0.8,0.03),
+vLab=sprite(function(g){g.fillStyle=GREEN;g.strokeStyle=GREEN;g.lineWidth=7;g.font='italic 700 76px serif';g.textAlign='center';g.fillText('v',64,106);g.beginPath();g.moveTo(34,34);g.lineTo(90,34);g.stroke();g.beginPath();g.moveTo(98,34);g.lineTo(84,24);g.lineTo(84,44);g.fill();},0.5);
+vG.add(vArr,vLab);
+
+var up=new THREE.Vector3(0,1,0),tan=new THREE.Vector3();
+function reset(){ph=0;inten=0;cache={};lastInc=true;lastVelUp=st.mover==='ring';
+  lo.material=st.pole==='N'?mN:mS;hi.material=st.pole==='N'?mS:mN;
+  orientMag();
+  if(st.mover==='magnet'){magnet.add(vG);}else{ring.add(vG);vG.position.set(R,0,0);}}
+
+var VIEWS={top:new THREE.Vector3(0,14,1.2),tilt:new THREE.Vector3(0,6.5,12.5),bottom:new THREE.Vector3(0,-6.5,12.5)};
+document.querySelectorAll('.seg').forEach(function(seg){
+  seg.addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    var k=seg.dataset.k;st[k]=b.dataset.v;
+    seg.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false');});
+    if(k==='view')viewTarget=VIEWS[st.view].clone();else if(k==='planes'||k==='align')rebuild();else reset();
+  });
+});
+$('play').addEventListener('click',function(){st.playing=!st.playing;this.textContent=st.playing?'Tạm dừng':'Chạy tiếp';});
+$('spd').addEventListener('input',function(){st.speed=parseFloat(this.value);});
+$('cm').addEventListener('change',function(){magG.visible=this.checked;});
+$('lay').addEventListener('input',function(){st.layers=parseInt(this.value);$('lv').textContent=this.value;rebuild();});
+$('ci').addEventListener('change',function(){indG.visible=this.checked;});
+var hb=$('hold');
+hb.addEventListener('click',function(){holdShow=!holdShow;hb.setAttribute('aria-pressed',holdShow?'true':'false');});
+
+function setText(id,html){if(cache[id]!==html){cache[id]=html;$(id).innerHTML=html;}}
+function readout(u,du,ccw,bDown,active){
+  var rel=u*du;                       /* <0: lại gần mặt phẳng vòng dây */
+  var inc=lastInc,flat=(st.playing||dragging)&&Math.abs(u)<0.35;
+  setText('r1','Từ trường nam châm tại vòng dây hướng <b>'+(bDown?'xuống':'lên')+'</b>.');
+  if(!active){
+    setText('r2','Từ thông qua vòng dây: <b>'+(flat&&Math.abs(u)<0.3?'đang cực đại':'gần như không đổi')+'</b>.');
+    setText('r3','Chưa có từ trường cảm ứng.');
+    setText('r4','Đang không có dòng điện cảm ứng.');
+  }else{
+    setText('r2',((st.playing||dragging)?'N':'Trước khi dừng, n')+'am châm đang <b>'+(inc?'tiến lại gần':'ra xa')+'</b> mặt phẳng vòng dây, từ thông <b>'+(inc?'tăng':'giảm')+'</b>.');
+    var bcUp=ccw;
+    setText('r3','Từ trường cảm ứng <b>'+(inc?'ngược chiều':'cùng chiều')+'</b> từ trường nam châm, hướng <b>'+(bcUp?'lên':'xuống')+'</b>.');
+    setText('r4','Nhìn từ phía trên: dòng điện <b>'+(ccw?'ngược':'cùng')+' chiều kim đồng hồ</b>.');
+  }
+  var above=camera.position.y>ring.position.y,c2=active?(above?ccw:!ccw):null;
+  setText('r5',active?'Camera đang nhìn từ phía '+(above?'trên':'dưới')+': dòng điện '+(c2?'ngược':'cùng')+' chiều kim đồng hồ.':'Nam châm đi qua mặt phẳng vòng dây thì từ thông cực đại, dòng điện đổi chiều.');
+}
+
+/* Kéo thủ công vật chuyển động (nam châm hoặc vòng dây) dọc trục */
+var ray=new THREE.Raycaster(),ndc=new THREE.Vector2(),dragPlane=new THREE.Plane(),hitV=new THREE.Vector3(),grabOff=0,proxyMat=new THREE.MeshBasicMaterial({visible:false});
+var magHit=new THREE.Mesh(new THREE.BoxGeometry(0.95,1.5,0.95),proxyMat);magnet.add(magHit);
+var rhg=new THREE.TorusGeometry(R,0.2,8,48);rhg.rotateX(Math.PI/2);var ringHit=new THREE.Mesh(rhg,proxyMat);ring.add(ringHit);
+function setRay(e){var r=cv.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera);}
+function dragTarget(){return st.mover==='magnet'?magHit:ringHit;}
+function planeHit(){var nv=new THREE.Vector3(camera.position.x,0,camera.position.z);if(nv.lengthSq()<0.01)nv.set(0,0,1);nv.normalize();dragPlane.setFromNormalAndCoplanarPoint(nv,new THREE.Vector3(0,0,0));return ray.ray.intersectPlane(dragPlane,hitV);}
+function curY(){return st.mover==='magnet'?magnet.position.y:ring.position.y;}
+function uFromY(y){return st.mover==='magnet'?y:-y;}
+stage.addEventListener('pointerdown',function(e){
+  setRay(e);if(!ray.intersectObject(dragTarget()).length||!planeHit())return;
+  e.stopPropagation();dragging=true;controls.enabled=false;viewTarget=null;
+  grabOff=curY()-hitV.y;dragU=uFromY(curY());prevU=dragU;duS=0;cv.style.cursor='grabbing';
+},true);
+window.addEventListener('pointermove',function(e){
+  setRay(e);
+  if(dragging){if(planeHit()){dragU=Math.max(-A,Math.min(A,uFromY(hitV.y+grabOff)));}return;}
+  if(e.target===cv)cv.style.cursor=ray.intersectObject(dragTarget()).length?'grab':'';
+});
+function endDrag(){if(!dragging)return;dragging=false;controls.enabled=true;cv.style.cursor='';
+  ph=(duS>0?-1:1)*Math.acos(Math.max(-1,Math.min(1,dragU/A)));}
+window.addEventListener('pointerup',endDrag);window.addEventListener('pointercancel',endDrag);
+
+function resize(){var w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;
+  renderer.setSize(w,h,false);camera.aspect=w/h;camera.fov=w/h<1?58:40;camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(stage);resize();
+
+var last=performance.now(),phase=0;
+function tick(now){
+  requestAnimationFrame(tick);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  var w=W0*st.speed;
+  if(st.playing&&!dragging)ph+=w*dt;
+  var u=A*Math.cos(ph),du=st.playing?-A*w*Math.sin(ph):0;
+  if(dragging){u=dragU;duS+=((u-prevU)/Math.max(dt,0.001)-duS)*Math.min(1,dt*12);du=duS;prevU=u;}   /* u: độ cao tương đối của nam châm so với vòng dây */
+  if(st.mover==='magnet'){magnet.position.y=u;ring.position.y=0;}else{magnet.position.y=0;ring.position.y=-u;}
+  var bDown=st.pole==='N',moving=(st.playing||dragging)&&Math.abs(du)>(dragging?0.06:1e-3)&&Math.abs(u)>0.02;
+  if(moving)lastInc=u*du<0;
+  var inc=lastInc;
+  var ccw=inc?bDown:!bDown,d=ccw?1:-1;
+  /* dòng cảm ứng tỉ lệ với |dΦ/dt|, Φ ~ R^2/(R^2+u^2)^1.5 */
+  var df=Math.abs(3*R*R*u/Math.pow(R*R+u*u,2.5)*du)/(FMAX*A*W0*1.4);
+  var vm0=Math.abs(du)/(A*W0*1.4);
+  if(moving)inten=(0.3+0.7*Math.sqrt(Math.min(df,1)))*Math.min(1,Math.abs(u)/0.35)*Math.min(1,vm0*5);
+  else inten+=((holdShow?0.85:0)-inten)*Math.min(1,dt*10);
+  phase+=d*dt*3*inten;
+  for(var i=0;i<NC;i++){var th=phase+i*2*Math.PI/NC,c=cones[i];
+    c.position.set(R*Math.cos(th),0,-R*Math.sin(th));
+    tan.set(-Math.sin(th),0,-Math.cos(th)).multiplyScalar(d);c.quaternion.setFromUnitVectors(up,tan);
+    c.scale.setScalar(0.4+0.6*inten);}
+  coneMat.opacity=inten;glow.material.opacity=0.35*inten;iLab.material.opacity=inten;indMat.opacity=0.7*inten;
+  indCones.forEach(function(o){tan.copy(o.t).multiplyScalar(d);o.m.quaternion.setFromUnitVectors(up,tan);});
+  /* mũi tên vận tốc */
+  var vel=st.mover==='magnet'?du:-du,vm=Math.abs(vel)/(A*W0*1.4),dirUp=vel>=0;
+  if(moving)lastVelUp=dirUp;else{dirUp=lastVelUp;if(holdShow&&!st.playing&&!dragging)vm=1;}
+  vG.visible=(st.playing||dragging||holdShow)&&vm>0.04;vArr.rotation.x=dirUp?0:Math.PI;vArr.scale.y=0.4+0.6*Math.min(1,vm);
+  vLab.position.set(0.4,dirUp?0.4:-0.4,0);
+  if(st.mover==='magnet')vG.position.set(0,dirUp?0.5:-0.5,0);
+  if(viewTarget){camera.position.lerp(viewTarget,0.08);if(camera.position.distanceTo(viewTarget)<0.03)viewTarget=null;}
+  controls.update();
+  readout(u,du,ccw,bDown,inten>0.04);
+  renderer.render(scene,camera);
+}
+rebuild();reset();requestAnimationFrame(tick);
+})();
+</script>
+<script src="../data/ve-trang-chu.js" data-dx="360" data-bp="760" defer></script>
+</body>
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Định luật Boyle: mô hình xilanh – pít-tông 3D</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../css/thi-nghiem.css?v=1">
+<style>
+/* Riêng trang này */
+#labels{position:absolute;inset:0;pointer-events:none}
+.lb{position:absolute;transform:translate(-50%,-50%);font-size:13px;color:var(--ink);white-space:nowrap;padding:1px 6px;border-radius:4px;background:color-mix(in srgb,var(--bg) 72%,transparent)}
+.lb.tick{color:var(--mute);background:none;padding:0;font-size:11px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.slider{flex:1 1 100%;display:flex;align-items:center;gap:8px}
+.slider input{flex:1}
+#status{padding:10px 12px;border-radius:8px;background:var(--ctrl);font-size:14px;font-weight:700;min-height:42px;display:flex;align-items:center}
+#status.in{background:#fde8e8;color:#9b1c1c}
+#status.out{background:#e3f1fd;color:#0b4f8a}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.card{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px}
+.val{text-align:center}
+.val .t,.val .u{font-size:12px;color:var(--mute)}
+.val .n{font-size:22px;font-weight:700}
+.arr{font-size:18px;margin-left:4px}
+.up{color:#c62828}.down{color:#1565c0}
+#graph{background:#fff;border:1px solid var(--line);border-radius:8px}
+.row2 .card{margin:10px 0}
+th,td{text-align:center}
+td:first-child,th:first-child{text-align:center}
+input.pv-input{width:70px;text-align:center}
+</style>
+</head>
+<body>
+<noscript><p style="padding:20px">Cần bật JavaScript để xem mô phỏng.</p></noscript>
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="cv" aria-label="Mô hình 3D xilanh và pít-tông"></canvas><div id="labels"></div>
+    <div class="hint">Kéo tay quay hoặc pít-tông để nén/giãn khí · kéo nền để xoay · cuộn hoặc chụm hai ngón để thu phóng</div>
+    <div class="fallback" id="fallback" hidden>Không khởi tạo được WebGL hoặc không tải được thư viện Three.js. Hãy kiểm tra kết nối mạng và bật tăng tốc phần cứng của trình duyệt.</div>
+  </div>
+  <aside class="panel">
+    <h1>Định luật Boyle: xilanh – pít-tông 3D</h1>
+    <p class="sub">Kéo <b>tay quay</b> (hoặc pít-tông) sang trái/phải, hoặc dùng thanh trượt và các nút bên dưới. Nhiệt độ khí giữ không đổi. Kéo nền để xoay mô hình.</p>
+    <div class="controls">
+    <button id="bValve" style="border-color: #cc0000; color: #cc0000;">⭮ Mở van xả</button>
+    <button id="bIn">⏵ Đẩy vào (nén)</button>
+    <button id="bOut">⏴ Kéo ra (giãn)</button>
+    <button id="bStop">⏸ Dừng</button>
+    <button id="bView">⟲ Góc nhìn</button>
+    <div class="slider"><span>Thể tích</span><input id="slider" type="range" min="15" max="60" step="0.5" value="60"><span id="sv">60 ml</span></div>
+  </div>
+
+  <div id="status">Khởi động: Mở van xả, pít-tông ở 60 ml (Áp suất chuẩn 1.00 bar).</div>
+
+  <div class="cards">
+    <div class="card val"><div class="t">Thể tích khí V</div><div><span class="n" id="vV">60.0</span><span class="arr" id="aV"></span></div><div class="u">ml</div></div>
+    <div class="card val"><div class="t">Áp suất p</div><div><span class="n" id="vP">1.00</span><span class="arr" id="aP"></span></div><div class="u">bar</div></div>
+    <div class="card val"><div class="t">Nhiệt độ T</div><div><span class="n">23.5</span></div><div class="u">°C (không đổi)</div></div>
+  </div>
+
+  <div class="row2">
+    <div class="card">
+      <h2>Đồ thị p – V</h2>
+      <svg id="graph" viewBox="0 0 260 190" width="100%" font-family="Arial, sans-serif" font-size="10">
+        <line x1="34" y1="160" x2="250" y2="160" stroke="#333"/>
+        <line x1="34" y1="160" x2="34" y2="12" stroke="#333"/>
+        <g id="gTicks" fill="#333"></g>
+        <!-- Đường hyperbol chuẩn vẽ mờ làm đường tham chiếu -->
+        <path id="curve" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.35" stroke-dasharray="4 3"/>
+        <!-- Các điểm đo thực tế được ghi lại -->
+        <g id="trace" fill="#c62828"></g>
+        <line id="gx" stroke="#c62828" stroke-dasharray="3 3"/>
+        <line id="gy" stroke="#c62828" stroke-dasharray="3 3"/>
+        <circle id="gdot" r="4.5" fill="#c62828"/>
+        <text x="250" y="185" text-anchor="end">V (ml)</text>
+        <text x="4" y="12">p (bar)</text>
+      </svg>
+    </div>
+    <div class="card">
+      <h2>Bảng số liệu thí nghiệm</h2>
+      <div class="controls" style="margin-top:0">
+        <button id="bRec">＋ Ghi số liệu</button>
+        <button id="bClr">Xoá bảng</button>
+      </div>
+      <table>
+        <thead><tr><th>Lần</th><th>V (ml)</th><th>p (bar)</th><th>p·V</th></tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+      <p class="note">* Sử dụng số liệu V và p đo được để tính tích p·V vào ô tương ứng.</p>
+    </div>
+  </div>
+
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var X0 = -1.5, LMIN = 1.125, LMAX = 4.6, K = 40 / 3;   /* như bản 2D: V = K·L (ml), L = x − X0 */
+  var C_PV = 60, valveOpen = false, SPEED = 0.2, RAD = 0.75;
+  var $ = function (id) { return document.getElementById(id); };
+  var NS = 'http://www.w3.org/2000/svg';
+  var x = 3.0, drag = false, anim = 0, lastMove = 0, dir = 0, cnt = 0;
+  var G3 = null;                                           /* phần 3D; null nếu không có WebGL */
+
+  /* ====================== PHẦN 3D ====================== */
+  function build3D() {
+    if (typeof THREE === 'undefined') throw new Error('no three');
+    var cv = $('cv'), stage = $('stage');
+    var renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    renderer.setClearColor(0, 0);
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x778899, 0.95));
+    var sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(-3, 8, 7); scene.add(sun);
+
+    function M(c, o) { return new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.5, metalness: 0.1 }, o || {})); }
+    function cylX(r, len, mat, seg, open) {           /* trụ nằm dọc trục x, tâm tại gốc */
+      var g = new THREE.CylinderGeometry(r, r, len, seg || 32, 1, !!open); g.rotateZ(Math.PI / 2);
+      return new THREE.Mesh(g, mat);
+    }
+    function ringX(r, t, x, c) {
+      var g = new THREE.TorusGeometry(r, t, 10, 48); g.rotateY(Math.PI / 2);
+      var m = new THREE.Mesh(g, M(c)); m.position.x = x; return m;
+    }
+    var root = new THREE.Group(); scene.add(root);
+
+    /* bàn thí nghiệm (kích thước theo bản vẽ bàn: mặt bàn, 4 chân, thanh giằng sát mặt) */
+    var YT = -1.15;                                  /* mặt bàn */
+    var tTop = M(0xc9a07a, { roughness: 0.7 }), tWood = M(0x8a5a3c, { roughness: 0.8 });
+    var TX0 = -5.2, TX1 = 5.0, TZ = 1.7, TT = 0.25, LEGH = 3.6, LEGW = 0.5, IN = 0.15;
+    function box(w, h, d, mat, x, y, z) { var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); root.add(m); return m; }
+    box(TX1 - TX0, TT, 2 * TZ, tTop, (TX0 + TX1) / 2, YT - TT / 2, 0);
+    [TX0 + IN, TX1 - IN - LEGW].forEach(function (lx) {
+      [-1, 1].forEach(function (sz) { box(LEGW, LEGH, LEGW, tWood, lx + LEGW / 2, YT - TT - LEGH / 2, sz * (TZ - IN - LEGW / 2)); });
+    });
+    var RL = TX1 - TX0 - 2 * IN - 2 * LEGW, RZ = 2 * TZ - 2 * IN - 2 * LEGW, RY = YT - TT - 0.19;
+    /* giằng: dày 0.1, cùng thụt 0.1 so với mặt ngoài của chân; hai đầu chạm đúng mặt trong của chân */
+    var RT = 0.1, RIN = 0.1, LX0 = TX0 + IN, LX1 = TX1 - IN;              /* LX0/LX1: mặt ngoài chân trái/phải */
+    var rx0 = LX0 + LEGW, rx1 = LX1 - LEGW;                                 /* mặt trong chân trái/phải */
+    [-1, 1].forEach(function (sz) { box(rx1 - rx0, 0.38, RT, tWood, (rx0 + rx1) / 2, RY, sz * (TZ - IN - RIN - RT / 2)); });
+    [LX0 + RIN + RT / 2, LX1 - RIN - RT / 2].forEach(function (px) { box(RT, 0.38, RZ, tWood, px, RY, 0); });
+    var floor = new THREE.Mesh(new THREE.CircleGeometry(12, 64), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.07, depthWrite: false }));
+    floor.rotation.x = -Math.PI / 2; floor.position.set((TX0 + TX1) / 2, YT - TT - LEGH - 0.005, 0); root.add(floor);
+
+    /* đế xilanh như bản 2D: tấm đế dài, đầu trái có tấm chặn + gờ đỡ, đầu phải có vách cao cho cần pít-tông xuyên qua */
+    var wood = M(0x5c4033, { roughness: 0.8 });
+    box(6.2, 0.25, 1.8, wood, 1.0, YT + 0.125, 0);
+    box(0.2, 0.48, 1.6, wood, -1.7, -0.66, 0);
+    function cradle(x0, dep) {                           /* gối đỡ: mặt trên khoét cung tròn ôm đúng thân xilanh */
+      var hw = 0.525, rc = RAD + 0.02, yt = -Math.sqrt(rc * rc - hw * hw), zc = hw;   /* hw: nửa bề rộng (1,4 → 1,05); mép trên là điểm cung tròn cắt hai bên */
+      var cs = new THREE.Shape(); cs.moveTo(-hw, YT + 0.25); cs.lineTo(hw, YT + 0.25); cs.lineTo(hw, yt); cs.lineTo(zc, yt);
+      cs.absarc(0, 0, rc, Math.atan2(yt, zc), Math.atan2(yt, -zc), true); cs.lineTo(-hw, yt); cs.closePath();
+      var g = new THREE.ExtrudeGeometry(cs, { depth: dep, bevelEnabled: false, curveSegments: 32 }); g.rotateY(Math.PI / 2);
+      var m = new THREE.Mesh(g, wood); m.position.x = x0; root.add(m);
+    }
+    cradle(-1.6, 0.1); cradle(3.4, 0.1);
+    var sh = new THREE.Shape(); sh.moveTo(-0.8, -0.9); sh.lineTo(0.8, -0.9); sh.lineTo(0.8, 0.95); sh.lineTo(-0.8, 0.95); sh.closePath();
+    var hole = new THREE.Path(); hole.absarc(0, 0, 0.11, 0, Math.PI * 2, true); sh.holes.push(hole);
+    var wg = new THREE.ExtrudeGeometry(sh, { depth: 0.2, bevelEnabled: false }); wg.rotateY(Math.PI / 2);
+    var wall = new THREE.Mesh(wg, wood); wall.position.x = 3.5; root.add(wall);
+
+    /* xilanh */
+    var glass = new THREE.MeshStandardMaterial({ color: 0xcfeff2, transparent: true, opacity: 0.2, roughness: 0.1, metalness: 0, side: THREE.DoubleSide, depthWrite: false });
+    var shell = cylX(RAD, 5.0, glass, 56, true); shell.position.x = (X0 + 3.5) / 2; root.add(shell);
+    var cap = cylX(RAD + 0.05, 0.1, M(0x9aa5ad), 48); cap.position.x = X0 - 0.05; root.add(cap);
+    root.add(ringX(RAD, 0.035, X0, 0x7b8790)); root.add(ringX(RAD, 0.035, 3.5, 0x7b8790));
+
+    /* thước chia ml dọc xilanh */
+    var tp = [], i;
+    for (i = 0; i <= 60; i += 1) {
+      var tx = X0 + i / K, len = i % 10 === 0 ? 0.16 : (i % 5 === 0 ? 0.11 : 0.07);
+      tp.push(tx, -len / 2, RAD + 0.004, tx, len / 2, RAD + 0.004);
+    }
+    var tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(tp, 3));
+    root.add(new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ color: 0x333333 })));
+
+    /* khí */
+    var gas = cylX(RAD * 0.985, 1, new THREE.MeshBasicMaterial({ color: 0xbff6ff, transparent: true, opacity: 0.3, depthWrite: false }), 48);
+    root.add(gas);
+
+    /* pít-tông, cần và tay quay: cả cụm trượt theo x */
+    var pis = new THREE.Group(); root.add(pis);
+    var dragMeshes = [];
+    var disc = cylX(RAD * 0.99, 0.2, M(0xb3b3b3, { metalness: 0.3 }), 48); disc.position.x = 0.1; pis.add(disc);
+    var seal = ringX(RAD * 0.99, 0.02, 0.0, 0x333333); pis.add(seal);
+    var rod = cylX(0.07, 4.8, M(0x999999, { metalness: 0.4 })); rod.position.x = 0.2 + 2.4; pis.add(rod);
+    var jm = M(0x999999, { metalness: 0.4 });
+    var crank = new THREE.Group(); crank.position.set(5.0, 0, 0); pis.add(crank);
+    var j1 = cylX(0.15, 0.16, jm, 24); crank.add(j1);
+    var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.78, 24), jm); arm.position.set(0, 0.33, 0); crank.add(arm);
+    var elbow = new THREE.Mesh(new THREE.SphereGeometry(0.07, 20, 14), jm); elbow.position.set(0, 0.72, 0); crank.add(elbow);   /* khuỷu bo tròn */
+    var rubber = M(0x2b2b2b, { roughness: 0.8, metalness: 0 });
+    var grip = cylX(0.095, 0.62, rubber, 24); grip.position.set(0.36, 0.72, 0); crank.add(grip);       /* tay nắm song song với trục */
+    var gcap = new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 12), rubber); gcap.position.set(0.67, 0.72, 0); crank.add(gcap);
+    [0.16, 0.28, 0.4, 0.52].forEach(function (gx) { var r = ringX(0.098, 0.014, gx, 0x111111); r.position.y = 0.72; crank.add(r); });
+    var pin = cylX(0.06, 0.12, jm, 16); pin.position.set(0.05, 0.72, 0); crank.add(pin);
+    dragMeshes.push(disc, rod, arm, elbow, grip, gcap, j1);
+
+    /* ống nối và van xả */
+    var pipeM = M(0xd8eef0, { roughness: 0.3 });
+    var pipeH = cylX(0.08, 1.5, pipeM, 20); pipeH.position.x = -2.25; root.add(pipeH);
+    var pipeV = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.7, 20), pipeM); pipeV.position.set(-2.5, 0.85, 0); root.add(pipeV);
+    /* van xả: ống bắt ren dính liền đầu ống; vít có mũ lục giác, đóng = vặn thụt sát vào, mở = vặn ra */
+    var collar = cylX(0.15, 0.3, M(0x777777, { metalness: 0.5 }), 20); collar.position.x = -3.0; root.add(collar);
+    [-3.08, -3.0, -2.92].forEach(function (rx) { root.add(ringX(0.155, 0.012, rx, 0x555555)); });
+    var screw = new THREE.Group(); screw.position.x = -3.15; root.add(screw);
+    var head = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.14, 6), M(0x333333, { metalness: 0.6, roughness: 0.4 })); head.rotation.z = Math.PI / 2; head.position.x = -0.07; screw.add(head);
+    var slotM = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    var sl1 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.3), slotM); sl1.position.x = -0.141; screw.add(sl1);
+    var sl2 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.3, 0.05), slotM); sl2.position.x = -0.141; screw.add(sl2);
+    var stem = cylX(0.06, 0.5, M(0xb8b8b8, { metalness: 0.7, roughness: 0.3 }), 16); stem.position.x = 0.25; screw.add(stem);
+    var valveX = 0, valveT = 0;
+
+    /* áp kế */
+    function ang(p) { return (225 - 270 * Math.min(Math.max(p, 0), 4) / 4) * Math.PI / 180; }
+    function gaugeTex() {
+      var c = document.createElement('canvas'); c.width = c.height = 512;
+      var g = c.getContext('2d'), u = 320, cx = 256, cy = 256;
+      g.fillStyle = '#ffb3b3'; g.beginPath(); g.arc(cx, cy, 256, 0, 7); g.fill();
+      g.fillStyle = '#fff2f2'; g.beginPath(); g.arc(cx, cy, 0.7 * u, 0, 7); g.fill();
+      g.strokeStyle = '#000'; g.fillStyle = '#000'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      for (var k = 0; k <= 40; k++) {
+        var a = ang(k * 0.1), major = k % 10 === 0, med = k % 5 === 0, r1 = major ? 0.62 : (med ? 0.68 : 0.73);
+        g.lineWidth = major ? 6 : (med ? 4.5 : 2.5);
+        g.beginPath(); g.moveTo(cx + r1 * u * Math.cos(a), cy - r1 * u * Math.sin(a)); g.lineTo(cx + 0.8 * u * Math.cos(a), cy - 0.8 * u * Math.sin(a)); g.stroke();
+        if (major) { g.font = '700 44px "Be Vietnam Pro",Arial,sans-serif'; g.fillText(String(k / 10), cx + 0.45 * u * Math.cos(a), cy - 0.45 * u * Math.sin(a)); }
+      }
+      g.font = '600 34px "Be Vietnam Pro",Arial,sans-serif'; g.fillText('bar', cx, cy + 0.42 * u);
+      var t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+    }
+    var gauge = new THREE.Group(); gauge.position.set(-2.5, 2.55, 0); root.add(gauge);
+    var gb = new THREE.CylinderGeometry(0.86, 0.86, 0.36, 56); gb.rotateX(Math.PI / 2);
+    gauge.add(new THREE.Mesh(gb, M(0xffb3b3)));
+    var face = new THREE.Mesh(new THREE.CircleGeometry(0.8, 56), new THREE.MeshBasicMaterial({ map: gaugeTex() })); face.position.z = 0.182; gauge.add(face);
+    var needle = new THREE.Group(); needle.position.z = 0.2; gauge.add(needle);
+    var nb = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.035, 0.02), new THREE.MeshBasicMaterial({ color: 0x000000 })); nb.position.x = 0.3; needle.add(nb);
+    var hub = new THREE.Mesh(new THREE.CircleGeometry(0.055, 20), new THREE.MeshBasicMaterial({ color: 0x000000 })); hub.position.z = 0.012; needle.add(hub);
+
+    /* cảm biến nhiệt độ: vòng kẹp ôm sát thân ống, dây nối xuống bộ hiển thị đặt trên bàn */
+    function senTex() {
+      var c = document.createElement('canvas'); c.width = 512; c.height = 215;
+      var g = c.getContext('2d'); g.fillStyle = '#cccccc'; g.fillRect(0, 0, 512, 215);
+      g.fillStyle = '#000'; g.font = '700 104px Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('23.5°C', 256, 114);
+      return new THREE.CanvasTexture(c);
+    }
+    var SX = -4.1, SZ = 1.1, SH = 0.6, SW = 1.26;
+    var pc = cylX(0.14, 0.4, M(0xb3b3b3, { metalness: 0.5 }), 24); pc.position.set(-2.0, 0, 0); root.add(pc);   /* đầu đo ôm ống nối */
+    root.add(ringX(0.145, 0.02, -2.17, 0x666666)); root.add(ringX(0.145, 0.02, -1.83, 0x666666));
+    var sen = new THREE.Mesh(new THREE.BoxGeometry(SW, SH, 0.5), M(0x999999)); sen.position.set(SX, YT + SH / 2, SZ); root.add(sen);
+    var senF = new THREE.Mesh(new THREE.PlaneGeometry(SW - 0.07, SH - 0.1), new THREE.MeshBasicMaterial({ map: senTex() })); senF.position.set(SX, YT + SH / 2, SZ + 0.255); root.add(senF);
+    var wire = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-2.0, 0.1, 0), new THREE.Vector3(-2.1, -0.25, 0.65), new THREE.Vector3(-2.5, -0.95, 1.1),
+      new THREE.Vector3(-2.9, -1.12, 1.15), new THREE.Vector3(-3.3, -1.12, 1.12), new THREE.Vector3(SX + SW / 2, YT + 0.3, SZ)]), 48, 0.025, 8), M(0x222222));
+    root.add(wire);
+
+    /* phân tử khí */
+    var N = 300, pts = [];
+    var inst = new THREE.InstancedMesh(new THREE.SphereGeometry(0.025, 10, 8), new THREE.MeshBasicMaterial({ color: 0xe53935 }), N);
+    inst.frustumCulled = false; root.add(inst);
+    function rnd(a, b) { return a + Math.random() * (b - a); }
+    function unit() { var z = rnd(-1, 1), t = rnd(0, 6.283), r = Math.sqrt(1 - z * z); return [r * Math.cos(t), r * Math.sin(t), z]; }
+    for (i = 0; i < N; i++) {
+      var u = unit(), sp = rnd(1.0, 1.6), ra = (RAD - 0.08) * Math.sqrt(Math.random()), ta = rnd(0, 6.283);
+      pts.push({ p: [rnd(X0 + 0.1, 2.9), ra * Math.cos(ta), ra * Math.sin(ta)], v: [u[0] * sp, u[1] * sp, u[2] * sp] });
+    }
+    var dm = new THREE.Object3D();
+
+    /* ---- nhãn dán thật: miếng dán ôm sát bề mặt vật (cong theo thân xilanh, vành áp kế; phẳng trên mặt cảm biến) ---- */
+    function stickerTex(w, h, draw) {
+      var c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+      var t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+    }
+    function paper(g, w, h, text, size, color) {
+      g.clearRect(0, 0, w, h);   /* nền trong suốt, chỉ in chữ */
+      g.fillStyle = color || '#1d2b33'; g.font = '700 ' + size + 'px "Be Vietnam Pro",Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(text, w / 2, h / 2 + size * 0.04);
+    }
+    function patch(fn, nu, nv, tex, transparent) {      /* fn(u,v) → điểm 3D; u chạy theo chiều đọc chữ, v từ dưới lên */
+      var pos = [], uv = [], idx = [], i, j;
+      for (j = 0; j <= nv; j++) for (i = 0; i <= nu; i++) { var p = fn(i / nu, j / nv); pos.push(p[0], p[1], p[2]); uv.push(i / nu, j / nv); }
+      for (j = 0; j < nv; j++) for (i = 0; i < nu; i++) { var a = j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+      var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.setIndex(idx); g.computeVertexNormals();
+      var m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0, side: THREE.DoubleSide, transparent: !!transparent, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      root.add(m); return m;
+    }
+    /* số trên thước: in thẳng lên thân xilanh (nền trong suốt) */
+    (function () {
+      var r = RAD + 0.006, pad = 0.25, x0 = X0 - pad, x1 = X0 + 60 / K + pad, t0 = -0.5, t1 = -0.26;
+      var tex = stickerTex(2048, 128, function (g, w, h) {
+        g.fillStyle = '#2a3a44'; g.font = '600 64px "Be Vietnam Pro",Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        for (var v = 0; v <= 60; v += 10) g.fillText(String(v), ((pad + v / K) / (60 / K + 2 * pad)) * w, h / 2);
+      });
+      patch(function (u, v) { var t = t0 + v * (t1 - t0); return [x0 + u * (x1 - x0), r * Math.sin(t), r * Math.cos(t)]; }, 64, 2, tex, true);
+    })();
+    /* "ÁP KẾ" dán ôm theo vành cong của áp kế (cạnh trên) */
+    (function () {
+      var R = 0.86 + 0.005, a0 = -0.85, a1 = 0.85, z0 = -0.15, z1 = 0.15;
+      patch(function (u, v) { var a = a0 + u * (a1 - a0); return [-2.5 + R * Math.sin(a), 2.55 + R * Math.cos(a), z1 - v * (z1 - z0)]; }, 40, 4,
+        stickerTex(768, 130, function (g, w, h) { paper(g, w, h, 'ÁP KẾ (bar)', 70); }), true);
+    })();
+    /* "CẢM BIẾN NHIỆT ĐỘ" dán phẳng trên mặt trên bộ hiển thị */
+    (function () {
+      var pg = new THREE.PlaneGeometry(SW - 0.16, 0.34); pg.rotateX(-Math.PI / 2);
+      var m = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ map: stickerTex(512, 138, function (g, w, h) { paper(g, w, h, 'CẢM BIẾN NHIỆT ĐỘ', 40); }), roughness: 0.45, transparent: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      m.position.set(SX, YT + SH + 0.003, SZ); root.add(m);
+    })();
+
+    /* nhãn chữ (HTML, bám theo điểm 3D) — chỉ còn "Van xả" */
+    var labels = [];
+    function lab(text, pos, cls, color) {
+      var e = document.createElement('div'); e.className = 'lb ' + (cls || ''); e.textContent = text;
+      if (color) e.style.color = color; $('labels').appendChild(e);
+      var o = { el: e, pos: new THREE.Vector3(pos[0], pos[1], pos[2]) }; labels.push(o); return o;
+    }
+
+    /* camera quay quanh mô hình */
+    var th = 0.28, ph = 1.15, dist = 11, tgt = new THREE.Vector3(1.55, -0.65, 0);
+    function setCam() {
+      camera.position.set(tgt.x + dist * Math.sin(ph) * Math.sin(th), tgt.y + dist * Math.cos(ph), tgt.z + dist * Math.sin(ph) * Math.cos(th));
+      camera.lookAt(tgt);
+    }
+    function fit() {
+      var a = camera.aspect || 1, t = Math.tan(20 * Math.PI / 180);
+      dist = Math.max(6.9 * 1.1 / (t * a), 4.4 * 1.15 / t, 8); setCam();
+    }
+    function resize() {
+      var w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+      renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); fit();
+    }
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(stage); addEventListener('resize', resize);
+
+    /* chuột: kéo vật = trượt pít-tông; kéo nền = xoay; cuộn = phóng to */
+    var ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ptr = new Map(), pd = 0, dragOff = 0, mode = '';
+    function setNdc(e) { var r = cv.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); }
+    function overHandle(e) { setNdc(e); return ray.intersectObjects(dragMeshes, false).length > 0; }
+    function axisX(e) {                       /* giao tia chuột với mặt phẳng chứa trục x, quay mặt về camera */
+      setNdc(e);
+      var n = new THREE.Vector3(0, camera.position.y - tgt.y, camera.position.z - tgt.z).normalize();
+      var pl = new THREE.Plane().setFromNormalAndCoplanarPoint(n, new THREE.Vector3(0, 0, 0)), hit = new THREE.Vector3();
+      return ray.ray.intersectPlane(pl, hit) ? hit.x : null;
+    }
+    cv.addEventListener('pointerdown', function (e) {
+      cv.setPointerCapture(e.pointerId); ptr.set(e.pointerId, e);
+      if (ptr.size === 1 && overHandle(e)) {
+        var ax = axisX(e);
+        if (ax !== null) { mode = 'piston'; drag = true; anim = 0; setBtns(); dragOff = ax - x; cv.style.cursor = 'grabbing'; return; }
+      }
+      mode = 'orbit';
+      if (ptr.size === 2) { var v = Array.from(ptr.values()); pd = Math.hypot(v[0].clientX - v[1].clientX, v[0].clientY - v[1].clientY); }
+    });
+    cv.addEventListener('pointermove', function (e) {
+      if (!ptr.has(e.pointerId)) { cv.style.cursor = overHandle(e) ? 'grab' : ''; return; }
+      var p = ptr.get(e.pointerId);
+      if (mode === 'piston') { var ax = axisX(e); if (ax !== null) setX(ax - dragOff); ptr.set(e.pointerId, e); return; }
+      if (ptr.size === 1) { th -= (e.clientX - p.clientX) * 0.006; ph = Math.min(1.5, Math.max(0.15, ph - (e.clientY - p.clientY) * 0.006)); }
+      ptr.set(e.pointerId, e);
+      if (ptr.size === 2) { var v = Array.from(ptr.values()), d = Math.hypot(v[0].clientX - v[1].clientX, v[0].clientY - v[1].clientY); if (pd > 0 && d > 0) dist *= pd / d; pd = d; }
+      dist = Math.min(Math.max(dist, 4), 40); setCam();
+    });
+    function up(e) { ptr.delete(e.pointerId); if (!ptr.size) { drag = false; mode = ''; cv.style.cursor = ''; } }
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    cv.addEventListener('wheel', function (e) { e.preventDefault(); dist = Math.min(Math.max(dist * Math.exp(e.deltaY * 0.001), 4), 40); setCam(); }, { passive: false });
+    $('bView').onclick = function () { th = 0.28; ph = 1.15; fit(); };
+
+    var proj = new THREE.Vector3(), last = performance.now();
+    function frame(now) {
+      var dt = Math.min((now - last) / 1000, 0.05); last = now;
+      tick(dt);
+      var w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
+      for (var i = 0; i < labels.length; i++) {
+        var l = labels[i]; proj.copy(l.pos).project(camera);
+        var vis = proj.z < 1; l.el.style.display = vis ? '' : 'none';
+        if (vis) { l.el.style.left = ((proj.x * 0.5 + 0.5) * w) + 'px'; l.el.style.top = ((-proj.y * 0.5 + 0.5) * h) + 'px'; }
+      }
+      renderer.render(scene, camera); requestAnimationFrame(frame);
+    }
+    function tick(dt) {
+      /* van trượt ra/vào */
+      valveX += (valveT - valveX) * Math.min(1, dt * 6); screw.position.x = -3.15 - valveX; screw.rotation.x = -valveX * 28;
+      /* hạt khí */
+      var rp = 0.04, xl = X0 + rp, xr = x - rp, rr = RAD - 0.05;
+      for (var i = 0; i < N; i++) {
+        var q = pts[i], p = q.p, v = q.v, sp = Math.hypot(v[0], v[1], v[2]);
+        if (sp < 0.8 || sp > 2.0) { var s = 1.2 / (sp || 1); v[0] *= s; v[1] *= s; v[2] *= s; sp = 1.2; }
+        p[0] += v[0] * dt; p[1] += v[1] * dt; p[2] += v[2] * dt;
+        if (p[0] < xl) { p[0] = xl; var u = unit(); v[0] = Math.abs(u[0]) * sp; v[1] = u[1] * sp; v[2] = u[2] * sp; }
+        if (p[0] > xr) { p[0] = xr; var u2 = unit(); v[0] = -Math.abs(u2[0]) * sp; v[1] = u2[1] * sp; v[2] = u2[2] * sp; }
+        var rho = Math.hypot(p[1], p[2]);
+        if (rho > rr) {
+          var ny = p[1] / rho, nz = p[2] / rho, d = v[1] * ny + v[2] * nz;
+          if (d > 0) { v[1] -= 2 * d * ny; v[2] -= 2 * d * nz; }
+          p[1] = ny * rr; p[2] = nz * rr;
+        }
+        dm.position.set(p[0], p[1], p[2]); dm.updateMatrix(); inst.setMatrixAt(i, dm.matrix);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+    }
+    function set(px, pp, open) {
+      pis.position.x = px;
+      var L = px - X0; gas.scale.x = L; gas.position.x = X0 + L / 2;
+      needle.rotation.z = ang(pp);
+      crank.rotation.x = -(px - X0) * K * 2 * Math.PI;   /* 1 ml ứng với đúng 1 vòng quay */
+      valveT = open ? 0.34 : 0;
+    }
+    resize(); requestAnimationFrame(frame);
+    return { set: set };
+  }
+
+  /* ====================== ĐỒ THỊ, BẢNG, ĐIỀU KHIỂN (giống bản 2D) ====================== */
+  function el(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    parent.appendChild(e); return e;
+  }
+  var gx = function (V) { return 34 + (V / 60) * 210; };
+  var gy = function (p) { return 160 - (p / 4) * 140; };
+  function drawCurve() {
+    var d = '';
+    for (var V = 15; V <= 60; V += 1) d += (V === 15 ? 'M' : 'L') + gx(V).toFixed(1) + ',' + gy(C_PV / V).toFixed(1);
+    $('curve').setAttribute('d', d);
+  }
+  drawCurve();
+  [0, 10, 20, 30, 40, 50, 60].forEach(function (v) {
+    el('line', { x1: gx(v), y1: 160, x2: gx(v), y2: 164, stroke: '#333' }, $('gTicks'));
+    var t = el('text', { x: gx(v), y: 174, 'text-anchor': 'middle' }, $('gTicks')); t.textContent = v;
+  });
+  [0, 1, 2, 3, 4].forEach(function (p) {
+    el('line', { x1: 30, y1: gy(p), x2: 34, y2: gy(p), stroke: '#333' }, $('gTicks'));
+    var t = el('text', { x: 27, y: gy(p) + 3, 'text-anchor': 'end' }, $('gTicks')); t.textContent = p;
+  });
+
+  function setX(nx) {
+    nx = Math.min(Math.max(nx, X0 + LMIN), X0 + LMAX);
+    var dd = nx - x;
+    if (Math.abs(dd) > 1e-4) { dir = dd < 0 ? -1 : 1; lastMove = performance.now(); }
+    x = nx;
+    var L = x - X0, Vv = K * L;
+    var p = valveOpen ? 1.0 : (C_PV / Vv);
+    if (valveOpen) { C_PV = Vv * 1.0; drawCurve(); }
+    if (G3) G3.set(x, p, valveOpen);
+    var V_read = parseFloat(Vv.toFixed(1)), p_read = parseFloat(p.toFixed(2));
+    $('vV').textContent = V_read.toFixed(1);
+    $('vP').textContent = p_read.toFixed(2);
+    $('slider').value = Vv;
+    $('sv').textContent = V_read.toFixed(0) + ' ml';
+    $('gdot').setAttribute('cx', gx(V_read)); $('gdot').setAttribute('cy', gy(p_read));
+    $('gx').setAttribute('x1', gx(V_read)); $('gx').setAttribute('x2', gx(V_read));
+    $('gx').setAttribute('y1', gy(p_read)); $('gx').setAttribute('y2', 160);
+    $('gy').setAttribute('x1', 34); $('gy').setAttribute('x2', gx(V_read));
+    $('gy').setAttribute('y1', gy(p_read)); $('gy').setAttribute('y2', gy(p_read));
+    updateStatus(true);
+  }
+
+  function updateStatus(moving) {
+    var st = $('status'), aV = $('aV'), aP = $('aP');
+    if (valveOpen) {
+      st.className = 'out'; st.textContent = 'Van đang MỞ: Không khí ra/vào tự do, áp suất cân bằng khí quyển (1 bar).';
+      aV.textContent = ''; aP.textContent = ''; return;
+    }
+    if (moving && dir < 0) {
+      st.className = 'in'; st.textContent = 'Pít-tông đi vào (Nén) → thể tích GIẢM → áp suất TĂNG';
+      aV.textContent = '▼'; aV.className = 'arr down'; aP.textContent = '▲'; aP.className = 'arr up';
+    } else if (moving && dir > 0) {
+      st.className = 'out'; st.textContent = 'Pít-tông đi ra (Giãn) → thể tích TĂNG → áp suất GIẢM';
+      aV.textContent = '▲'; aV.className = 'arr up'; aP.textContent = '▼'; aP.className = 'arr down';
+    } else { aV.textContent = ''; aP.textContent = ''; }
+  }
+
+  function setBtns() { $('bIn').className = anim < 0 ? 'on' : ''; $('bOut').className = anim > 0 ? 'on' : ''; }
+  $('bIn').onclick = function () { anim = -1; setBtns(); };
+  $('bOut').onclick = function () { anim = 1; setBtns(); };
+  $('bStop').onclick = function () { anim = 0; setBtns(); };
+  $('slider').oninput = function () { anim = 0; setBtns(); setX(X0 + parseFloat(this.value) / K); };
+
+  $('bValve').onclick = function () {
+    valveOpen = !valveOpen;
+    if (valveOpen) { this.innerHTML = '⭮ Đóng van xả'; this.style.background = '#fde8e8'; }
+    else { this.innerHTML = '⭮ Mở van xả'; this.style.background = ''; }
+    setX(x);
+  };
+
+  $('bRec').onclick = function () {
+    if (cnt >= 12 || valveOpen) return;
+    cnt++;
+    var L = x - X0, Vv = K * L, p = C_PV / Vv;
+    var V_read = parseFloat(Vv.toFixed(1)), p_read = parseFloat(p.toFixed(2));
+    var tr = document.createElement('tr');
+    [cnt, V_read.toFixed(1), p_read.toFixed(2)].forEach(function (v) { var td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+    var tdPV = document.createElement('td'), inPV = document.createElement('input');
+    inPV.className = 'pv-input'; inPV.type = 'number'; inPV.step = '0.1'; inPV.placeholder = '?';
+    tdPV.appendChild(inPV); tr.appendChild(tdPV); $('tb').appendChild(tr);
+    el('circle', { r: 3.5, cx: gx(V_read), cy: gy(p_read) }, $('trace'));
+  };
+  $('bClr').onclick = function () { $('tb').innerHTML = ''; $('trace').innerHTML = ''; cnt = 0; };
+
+  /* chuyển động tự động (nút đẩy vào / kéo ra) và thông báo trạng thái */
+  var t0 = performance.now();
+  function loop(t) {
+    var dt = Math.min((t - t0) / 1000, 0.05); t0 = t;
+    if (anim !== 0) {
+      var before = x; setX(x + anim * SPEED * dt);
+      if (x === before) { anim = 0; setBtns(); }
+    }
+    if (!drag && anim === 0 && t - lastMove > 700 && !valveOpen) {
+      updateStatus(false);
+      if ($('status').className) { $('status').className = ''; $('status').textContent = 'Đứng yên: p·V = hằng số. Hãy kéo tay quay để khảo sát tiếp.'; }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  try { G3 = build3D(); } catch (e) { $('fallback').hidden = false; }
+  setX(3.0); dir = 0; updateStatus(false);
+  requestAnimationFrame(loop);
+})();
+</script>
+<script src="../data/ve-trang-chu.js" data-dx="360" data-bp="760" defer></script>
+</body>
+</html>

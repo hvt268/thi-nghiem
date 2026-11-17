@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xem trước hình đại diện</title>
+<link rel="stylesheet" href="../css/trang-chu.css">
+<style>
+  body{padding:24px clamp(16px,3vw,40px) 56px}
+  h1{font:600 26px var(--fh);margin:0 0 6px}
+  .lead{color:var(--muted);max-width:70ch;margin:0 0 20px}
+  .tiles{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+  .tile{cursor:default}.tile:hover{transform:none}
+  .used{display:block;margin-top:2px}
+  .warn{color:#b45309}
+</style>
+</head>
+<body>
+<h1>Xem trước hình đại diện</h1>
+<p class="lead">Trang này đọc <code>data/hinh-dai-dien.js</code> và <code>data/danh-muc.js</code>. Sửa hình, lưu file, rồi tải lại trang này để xem ngay. Màu của mỗi hình lấy theo chủ đề tương ứng.</p>
+<div class="tiles" id="out"></div>
+<script src="../data/danh-muc.js"></script>
+<script src="../data/hinh-dai-dien.js"></script>
+<script>
+(function(){
+  var D=window.SITE_DATA||{topics:[],experiments:[]},I=window.SITE_ICONS||{},topic={},users={};
+  D.topics.forEach(function(t){topic[t.id]=t;(users[t.id]=users[t.id]||[]).push('chủ đề: '+t.name)});
+  D.experiments.forEach(function(e){if(e.icon)(users[e.icon]=users[e.icon]||[]).push('thí nghiệm: '+e.title)});
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  document.getElementById('out').innerHTML=Object.keys(I).map(function(k){
+    var t=topic[k],hue=t?t.hue:210,u=users[k];
+    return '<div class="tile" style="--h:'+hue+'"><div class="thumb"><svg viewBox="0 0 320 180" aria-hidden="true">'+I[k]+'</svg></div>'+
+      '<div class="tb"><b><code>'+esc(k)+'</code></b>'+
+      '<span class="used'+(u?'':' warn')+'">'+(u?esc(u.join(' · ')):'Chưa được dùng ở đâu')+'</span></div></div>'}).join('');
+})();
+</script>
+</body>
+</html>
