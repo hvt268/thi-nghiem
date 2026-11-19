@@ -21,7 +21,7 @@
 <div class="stage" id="stage">
 <canvas id="cv" tabindex="0" aria-label="Mô hình 3D từ trường của dòng điện"></canvas>
 <span class="lbl" id="pN">N</span><span class="lbl" id="pS">S</span><span class="lbl" id="nN">N</span><span class="lbl" id="nS">S</span><span class="lbl" id="lblB">B</span><span class="lbl" id="lblI">I</span>
-<div class="hint">Chuột trái: xoay tự do | Shift+Trái: xoay phương ngang | Shift+Phải: xoay phương dọc | Ctrl+Shift+Trái: xoay lật ảnh<br>Phím 0: Góc mặc định | L: Nhìn từ trái | R: Nhìn từ phải | Kéo nam châm/B để trượt.</div>
+<div class="hint">Chuột trái: xoay tự do | Shift+Trái: xoay phương ngang | Shift+Phải: xoay phương dọc | Ctrl+Shift+Trái: xoay lật ảnh<br>Phím 0: Góc mặc định | L: Nhìn từ trái | R: Nhìn từ phải | Kéo nam châm/B để trượt; tắt “Tiến dọc trục” rồi kéo đinh ốc để trượt.</div>
 <div class="fallback" id="fallback" hidden>Trình duyệt không chạy được WebGL nên chưa dựng được mô hình 3D.</div>
 </div>
 <aside class="panel">
@@ -51,7 +51,7 @@
 <label class="check"><input type="checkbox" id="cPoles" checked><span>Ghi tên cực N, S</span></label></div></section>
 <section class="group"><h2>Đinh ốc (quy tắc vặn nút chai)</h2>
 <label class="check"><input type="checkbox" id="cScrew" checked><span>Hiện đinh ốc<small>Dây thẳng: tiến theo chiều I thì quay theo chiều B. Vòng dây, ống dây: quay theo chiều I thì tiến theo chiều B dọc trục.</small></span></label>
-<label class="check"><input type="checkbox" id="cAdv" checked><span>Tiến dọc trục<small>Bỏ chọn để đinh ốc chỉ quay tại chỗ</small></span></label>
+<label class="check"><input type="checkbox" id="cAdv" checked><span>Tiến dọc trục<small>Bỏ chọn để đinh ốc chỉ quay tại chỗ và kéo trượt được dọc trục</small></span></label>
 <div class="row"><div class="top"><label for="rSpin">Tốc độ quay</label><output id="oSpin"></output></div><input type="range" id="rSpin" min="0.1" max="3" step="0.1" value="1.2"></div>
 <div class="row"><div class="top"><label for="rPitch">Bước ren</label><output id="oPitch"></output></div><input type="range" id="rPitch" min="0.2" max="1" step="0.05" value="0.4"></div></section>
 <section class="group"><h2>Nam châm thử và véc tơ B</h2>
@@ -76,7 +76,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setClearColor(0
 var scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(38,1,.1,300);
 var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 var S={mode:'coil',sgn:1,I:2,turns:8,lines:2,lm:{wire:6,loop:7,coil:7},shape:'circle',planes:1,pm:{wire:1,loop:1,coil:1},massN:false,showPlane:true,halo:true,planeOp:45,arrC:true,arrF:true,pC:false,pF:false,
- body:true,bodyOp:70,poles:true,needle:true,bvec:true,auto:false,roll:0,pl:1,pu:.5,nl:2,nu:.3,scrOn:true,scrAdv:true,scrSpin:1.2,scrPitch:.4,scrSize:1,nlbl:true};
+ body:true,bodyOp:70,poles:true,needle:true,bvec:true,auto:false,roll:0,pl:1,pu:.5,nl:2,nu:.3,scrOn:true,scrAdv:true,scrSpin:1.2,scrPitch:.4,scrSize:1,nlbl:true,scrX:0,scrOff:0};
 if(reduce){S.pC=S.pF=false}
 function clamp(x,a,b){return Math.max(a,Math.min(b,x))}
 /* Vị trí mặc định của điểm M (véc tơ B) và nam châm thử: pl/nl = chỉ số đường sức, pu/nu = vị trí dọc đường (0..1). Dây thẳng: chỉ số lớn hơn số đường sức đang có sẽ tự lùi về đường ngoài cùng. */
@@ -291,9 +291,21 @@ function buildScrew(){var s=S.scrSize,Ls=1.7*s,Rr=.15*s,pitch=S.scrPitch,tip=.36
  var fg=track(new THREE.ShapeGeometry(cross(new THREE.Shape())));fg.rotateX(-Math.PI/2);var fl=new THREE.Mesh(fg,dk);fl.position.y=yo+dp-.004*s;spin.add(fl);
  root.rotation.z=S.sgn>0?-Math.PI/2:Math.PI/2;
  var H=S.mode==='wire'?half:S.mode==='loop'?5.5:(half+.3)*2.5;
- screw.y0=-H+Ls/2+hh;screw.y1=H-Ls/2-tip;screw.root=root;screw.spin=spin;grp.add(root)}
+ screw.y0=-H+Ls/2+hh;screw.y1=H-Ls/2-tip;screw.lo=-Ls/2-hh;screw.hi=Ls/2+tip;screw.root=root;screw.spin=spin;grp.add(root)}
+/* Kéo trượt đinh ốc dọc trục khi tắt "Tiến dọc trục" */
+function scrRange(){var a=S.sgn*screw.y0,b=S.sgn*screw.y1;return[Math.min(a,b),Math.max(a,b)]}
+function screwHits(){var o=[],x=screw.root.position.x;for(var i=0;i<=6;i++)o.push(new V3(x+S.sgn*(screw.lo+(screw.hi-screw.lo)*i/6),0,0));return o}
+function canGrabScrew(){return !S.scrAdv&&S.scrOn&&!!screw.root}
+function axisX(px,py){var r=scrRange(),lo=r[0],hi=r[1],N=80,best=1e18,bx=lo,p0=scr(new V3(lo,0,0)),p1=scr(new V3(hi,0,0));
+ if(Math.hypot(p1[0]-p0[0],p1[1]-p0[1])<24)return null; /* nhìn dọc theo trục: không xác định được vị trí kéo */
+ function dd(x){var q=scr(new V3(x,0,0));return(q[0]-px)*(q[0]-px)+(q[1]-py)*(q[1]-py)}
+ for(var i=0;i<=N;i++){var x=lo+(hi-lo)*i/N,d=dd(x);if(d<best){best=d;bx=x}}
+ var st=(hi-lo)/N;for(var k=0;k<14;k++){[bx-st,bx+st].forEach(function(x){if(x<lo||x>hi)return;var d=dd(x);if(d<best){best=d;bx=x}});st/=2}
+ return bx}
+function dragScrew(px,py){var x=axisX(px,py);if(x===null)return;S.scrX=x+S.scrOff}
 function updateScrew(dt){if(!screw.root)return;screw.root.visible=S.scrOn;if(!S.scrOn)return;
  screw.phi+=dt*S.scrSpin*TAU;screw.spin.rotation.y=screw.phi;var fade=1,x=0;
+ if(!S.scrAdv){var rg=scrRange();x=clamp(S.scrX,rg[0],rg[1])}
  if(S.scrAdv){var span=Math.max(.1,screw.y1-screw.y0),u=((S.scrPitch*screw.phi/TAU)%span+span)%span/span;x=S.sgn*(screw.y0+u*span);fade=smooth(u/.03)*(1-smooth((u-.97)/.03))}
  screw.root.position.x=x;screw.mats.forEach(function(m){m.opacity=.9*fade})}
 
@@ -327,7 +339,7 @@ function snap(px,py){
 function getPinchDist(){var pts=Array.from(camPtrs.values());return Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y)}
 
 cv.addEventListener('contextmenu',function(e){e.preventDefault()});
-cv.addEventListener('dblclick',function(e){var c=cpos(e);if(nearAny(hits,c[0],c[1],32))return;if(nearAny(wpts,c[0],c[1],16))setDir(-S.sgn);else S.roll=0});
+cv.addEventListener('dblclick',function(e){var c=cpos(e);if(nearAny(hits,c[0],c[1],32))return;if(canGrabScrew()&&nearAny(screwHits(),c[0],c[1],28))return;if(nearAny(wpts,c[0],c[1],16))setDir(-S.sgn);else S.roll=0});
 
 cv.addEventListener('pointerdown',function(e){
   var c=cpos(e),sl=e.pointerType==='touch'?44:32;
@@ -341,6 +353,12 @@ cv.addEventListener('pointerdown',function(e){
     return;
   }
   
+  if(!who&&canGrabScrew()&&(e.buttons===1||e.pointerType==='touch')&&nearAny(screwHits(),c[0],c[1],sl)){
+    var xc=axisX(c[0],c[1]);
+    if(xc!==null){pDrag=e.pointerId;pWho='X';S.scrOff=screw.root.position.x-xc;e.preventDefault();
+      try{cv.setPointerCapture(e.pointerId)}catch(x){}
+      cv.style.cursor='grabbing';dragScrew(c[0],c[1]);return}
+  }
   e.preventDefault();
   try{cv.setPointerCapture(e.pointerId)}catch(x){}
   camPtrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -355,7 +373,7 @@ cv.addEventListener('pointerdown',function(e){
 });
 
 cv.addEventListener('pointermove',function(e){
-  if(pDrag===e.pointerId){var c=cpos(e);snap(c[0],c[1]);return}
+  if(pDrag===e.pointerId){var c=cpos(e);if(pWho==='X')dragScrew(c[0],c[1]);else snap(c[0],c[1]);return}
   
   if(camPtrs.has(e.pointerId)){
     var p=camPtrs.get(e.pointerId);
@@ -381,7 +399,7 @@ cv.addEventListener('pointermove',function(e){
     }
     v.az=t.az;v.el=t.el;
   } else {
-    var c2=cpos(e);cv.style.cursor=nearAny(hits,c2[0],c2[1],32)||nearAny(wpts,c2[0],c2[1],20)?'pointer':'';
+    var c2=cpos(e);cv.style.cursor=nearAny(hits,c2[0],c2[1],32)||nearAny(wpts,c2[0],c2[1],20)?'pointer':(canGrabScrew()&&nearAny(screwHits(),c2[0],c2[1],28)?'grab':'');
   }
 });
 
@@ -447,7 +465,7 @@ function setMode(m){S.mode=m;var x=TXT[m];document.title=x.ttl;$('ttl').textCont
  S.planes=S.pm[m];$('rPW').value=S.planes;$('oPW').textContent=S.planes;$('plNote').textContent=m==='wire'?'Mỗi mặt phẳng vuông góc với dây, xếp dọc theo dây.':'Các mặt phẳng chứa trục, xoay đều quanh trục.';$('rowT').hidden=m!=='coil';$('rowBody').style.display=$('rowBO').style.display=m==='loop'?'none':'';$('bodyBox').hidden=m==='wire';$('kvC').hidden=m==='wire';
  if(x.body){$('lBody').textContent='Hiện '+x.body.toLowerCase();$('kBcL').textContent=x.bc}
  S.lines=S.lm[m];$('shapeBox').hidden=m!=='wire';
- var pd=PROBE[m];S.pl=pd.pl;S.pu=pd.pu;S.nl=pd.nl;S.nu=pd.nu;resetView('0');sb()}
+ S.scrX=0;var pd=PROBE[m];S.pl=pd.pl;S.pu=pd.pu;S.nl=pd.nl;S.nu=pd.nu;resetView('0');sb()}
 function setDir(s){S.sgn=s;pr('dirA',s>0);pr('dirB',s<0);sb()}
 function bindR(id,key,out,fmt,mode){var el=$(id),o=$(out);function u(){S[key]=parseFloat(el.value);o.textContent=fmt(S[key])}
  el.addEventListener('input',function(){u();if(mode==='I')setI(S.I);else if(mode!=='b'){applyVis();refresh()}});
