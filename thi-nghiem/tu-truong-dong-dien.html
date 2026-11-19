@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Từ trường của dòng điện: dây thẳng, vòng tròn, ống dây</title>
+<title>Từ trường của dòng điện và nam châm: dây thẳng, vòng tròn, ống dây, nam châm thẳng</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="../css/thi-nghiem.css?v=1">
 <style>
@@ -27,12 +27,12 @@
 <aside class="panel">
 <h1 id="ttl"></h1><p class="sub" id="desc"></p>
 <section class="group"><h2>Mô hình</h2>
-<div class="seg"><button type="button" data-mode="wire" aria-pressed="false">Dây thẳng</button><button type="button" data-mode="loop" aria-pressed="false">Vòng tròn</button><button type="button" data-mode="coil" aria-pressed="true">Ống dây</button></div></section>
-<section class="group"><h2>Dòng điện</h2>
+<div class="seg"><button type="button" data-mode="wire" aria-pressed="false">Dây thẳng</button><button type="button" data-mode="loop" aria-pressed="false">Vòng tròn</button><button type="button" data-mode="coil" aria-pressed="true">Ống dây</button><button type="button" data-mode="magnet" aria-pressed="false">Nam châm thẳng</button></div></section>
+<section class="group"><h2 id="hCur">Dòng điện</h2>
 <div class="seg"><button type="button" id="dirA" aria-pressed="true"></button><button type="button" id="dirB" aria-pressed="false"></button></div>
 <p class="note" id="dirNote"></p>
-<div class="row"><div class="top"><label for="rI">Cường độ I</label><output id="oI"></output></div><input type="range" id="rI" min="0.5" max="10" step="0.5" value="2"></div>
-<div class="row" id="rowT"><div class="top"><label for="rT">Số vòng dây N</label><output id="oT"></output></div><input type="range" id="rT" min="4" max="14" step="1" value="8"></div></section>
+<div class="row"><div class="top"><label for="rI" id="lI">Cường độ I</label><output id="oI"></output></div><input type="range" id="rI" min="0.5" max="10" step="0.5" value="2"></div>
+<div class="row" id="rowT"><div class="top"><label for="rT" id="lT">Số vòng dây N</label><output id="oT"></output></div><input type="range" id="rT" min="4" max="14" step="1" value="8"></div></section>
 <section class="group"><h2>Đường sức</h2>
 <div class="row" id="plW"><div class="top"><label for="rPW">Số mặt phẳng chứa đường sức</label><output id="oPW"></output></div><input type="range" id="rPW" min="1" max="8" step="1" value="1"></div>
 <p class="note" id="plNote"></p></section>
@@ -50,7 +50,7 @@
 <div id="bodyBox" class="group"><label class="check" id="rowBody"><input type="checkbox" id="cBody" checked><span id="lBody">Hiện thân ống</span></label>
 <div class="row" id="rowBO"><div class="top"><label for="rBO">Độ mờ đục</label><output id="oBO"></output></div><input type="range" id="rBO" min="0" max="100" step="5" value="70"></div>
 <label class="check"><input type="checkbox" id="cPoles" checked><span>Ghi tên cực N, S</span></label></div></section>
-<section class="group"><h2>Đinh ốc (quy tắc vặn nút chai)</h2>
+<section class="group" id="secScrew"><h2>Đinh ốc (quy tắc vặn nút chai)</h2>
 <label class="check"><input type="checkbox" id="cScrew" checked><span>Hiện đinh ốc<small>Dây thẳng: tiến theo chiều I thì quay theo chiều B. Vòng dây, ống dây: quay theo chiều I thì tiến theo chiều B dọc trục.</small></span></label>
 <label class="check"><input type="checkbox" id="cAdv" checked><span>Tiến dọc trục<small>Bỏ chọn để đinh ốc chỉ quay tại chỗ và kéo trượt được dọc trục</small></span></label>
 <div class="row"><div class="top"><label for="rSpin">Tốc độ quay</label><output id="oSpin"></output></div><input type="range" id="rSpin" min="0.1" max="3" step="0.1" value="1.2"></div>
@@ -76,16 +76,17 @@ var V3=THREE.Vector3,UP=new V3(0,1,0);
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setClearColor(0,0);
 var scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(38,1,.1,300);
 var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-var S={mode:'coil',sgn:1,I:2,turns:8,lines:2,lm:{wire:6,loop:7,coil:7},shape:'circle',planes:1,pm:{wire:1,loop:1,coil:1},massN:false,showPlane:true,halo:true,planeOp:45,arrC:true,arrF:true,pC:false,pF:false,
+var S={mode:'coil',sgn:1,I:2,turns:8,lines:2,lm:{wire:6,loop:7,coil:7,magnet:7},shape:'circle',planes:1,pm:{wire:1,loop:1,coil:1,magnet:1},massN:false,showPlane:true,halo:true,planeOp:45,arrC:true,arrF:true,pC:false,pF:false,
  body:true,bodyOp:70,poles:true,needle:true,bvec:true,auto:false,roll:0,pl:1,pu:.5,nl:2,nu:.3,scrOn:true,scrAdv:true,scrSpin:1.2,scrPitch:.4,scrSize:1,nlbl:true,scrX:0,scrOff:0,fUni:true};
 if(reduce){S.pC=S.pF=false}
 function clamp(x,a,b){return Math.max(a,Math.min(b,x))}
 /* Vị trí mặc định của điểm M (véc tơ B) và nam châm thử: pl/nl = chỉ số đường sức, pu/nu = vị trí dọc đường (0..1). Dây thẳng: chỉ số lớn hơn số đường sức đang có sẽ tự lùi về đường ngoài cùng. */
-var PROBE={wire:{pl:6,pu:.896,nl:6,nu:.824},loop:{pl:5,pu:.556,nl:5,nu:.428},coil:{pl:5,pu:.569,nl:5,nu:.405}};
+var PROBE={wire:{pl:6,pu:.896,nl:6,nu:.824},loop:{pl:5,pu:.556,nl:5,nu:.428},coil:{pl:5,pu:.569,nl:5,nu:.405},magnet:{pl:5,pu:.569,nl:5,nu:.405}}; /* nam châm thẳng dùng lại từ trường ống dây */
 /* ---------- Vật lý (vòng dây / ống dây) ---------- */
 var GLX=[-.8611363115940526,-.3399810435848563,.3399810435848563,.8611363115940526],GLW=[.3478548451374538,.6521451548625461,.6521451548625461,.3478548451374538];
 var zq=[],wq=[],LEN=4.4,quadKey='';
 function effN(){return S.mode==='loop'?1:S.turns}
+function isSol(){return S.mode==='coil'||S.mode==='magnet'} /* ống dây và nam châm thẳng có từ trường tương đương */
 function mkQuad(len,panels){var q=[[],[]],h=len/panels;for(var p=0;p<panels;p++){var c=-len/2+(p+.5)*h;for(var j=0;j<4;j++){q[0].push(c+GLX[j]*h/2);q[1].push(GLW[j]*h/2)}}return q}
 function setQuad(){var k=S.mode+'|'+S.turns;if(k===quadKey)return;quadKey=k;
  if(S.mode==='loop'){LEN=1;zq=[0];wq=[1];return}
@@ -128,7 +129,7 @@ function bAt(p){var r=Math.hypot(p.y,p.z);
 /* ---------- Dựng cảnh ---------- */
 var C={};function readTheme(){var cs=getComputedStyle(document.documentElement);['copper','field','body','north','sblue','bvec','flow','cur'].forEach(function(k){C[k]=cs.getPropertyValue('--'+k).trim()||'#888'});C.cur='#e6c27a'}
 var coneBig=new THREE.ConeGeometry(.12,.34,18),coneFld=new THREE.ConeGeometry(.1,.3,16);
-var fRef=1,grp,disp=[],curves=[],wpts=[],planeSets=[],bodyMesh,gAC,gAF,gMass,fP,cP,fa,fph=[],ca,cph=[],cCurve,cLen=1,cN=0,haloCache={};
+var bodyMats=[],fRef=1,grp,disp=[],curves=[],wpts=[],planeSets=[],bodyMesh,gAC,gAF,gMass,fP,cP,fa,fph=[],ca,cph=[],cCurve,cLen=1,cN=0,haloCache={};
 var needle,bShaft,bHead,pp=new V3(),nDir=new V3(1,0,0),nq=new THREE.Quaternion(),nT=new THREE.Quaternion(),bq=new THREE.Quaternion(),bn=0,bnN=0,bLen=1,hits=[],pn=new V3(),dN=new V3(1,0,0),hitsM=[],hitsN=[],dot,rLine,rLinePos=new Float32Array(6),snapN=true,half=2.2;
 var aB=new V3(),aI=new V3(),tp=new V3(),mtx=new THREE.Matrix4();
 function track(o){disp.push(o);return o}
@@ -143,7 +144,7 @@ function haloTex(key,fn,N){if(haloCache[key])return haloCache[key];
  var t=new THREE.DataTexture(d,N,N,THREE.RGBAFormat);t.magFilter=t.minFilter=THREE.LinearFilter;t.generateMipmaps=false;t.needsUpdate=true;return(haloCache[key]=t)}
 function edge(q,a){var e=clamp((q-a)/(1-a),0,1);return 1-e*e*(3-2*e)}
 function build(){
- disposeAll();var wire=S.mode==='wire',loop=S.mode==='loop',sg=S.sgn;if(!wire)setQuad();
+ disposeAll();var wire=S.mode==='wire',loop=S.mode==='loop',mag=S.mode==='magnet',sg=S.sgn;if(!wire)setQuad();
  grp=new THREE.Group();scene.add(grp);
  
  if(!scene.userData.l){scene.add(new THREE.AmbientLight(0xffffff,.6));var dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(5,10,15);scene.add(dl);scene.userData.l=1}
@@ -158,13 +159,19 @@ function build(){
  else if(loop){half=.2;for(var c0=0;c0<96;c0++){var ph=c0/96*TAU;wpts.push(new V3(0,R*Math.cos(ph),R*Math.sin(ph)))}
   grp.add(new THREE.Mesh(track(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(wpts,true),160,.055,10,true)),wm));
   for(var a=0;a<4;a++){var p2=(a+.5)*Math.PI/2;addCone(gAC,new V3(0,R*Math.cos(p2),R*Math.sin(p2)),new V3(0,-Math.sin(p2),Math.cos(p2)).multiplyScalar(sg),coneBig,wm)}}
+ else if(mag){half=LEN/2} /* nam châm thẳng: không có dây dẫn, không có dòng điện */
  else{half=LEN/2;for(var h=0;h<=S.turns*24;h++)wpts.push(helixPt(S.turns,h/(S.turns*24)));
   grp.add(new THREE.Mesh(track(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(wpts),S.turns*48,.045,8)),wm));
   for(var t=0;t<S.turns;t++)[.25,.75].forEach(function(o){var u=(t+o)/S.turns,ph2=u*S.turns*TAU;addCone(gAC,helixPt(S.turns,u),new V3(PITCH/TAU,-R*Math.sin(ph2),R*Math.cos(ph2)).normalize().multiplyScalar(sg),coneBig,wm)})}
  
  bodyMesh=null;
  if(!wire){var bm=track(new THREE.MeshBasicMaterial({color:C.body,transparent:true,opacity:S.bodyOp/100,side:THREE.DoubleSide,depthWrite:false}));
-  if(!loop){bodyMesh=new THREE.Mesh(track(new THREE.CylinderGeometry(R,R,LEN,64,1,true)),bm);bodyMesh.rotation.z=Math.PI/2;grp.add(bodyMesh)}}
+  if(mag){ /* thân nam châm: nửa cực N (đỏ) và nửa cực S (xanh), cực N ở phía B đi ra (+x khi sgn>0) */
+   bodyMesh=new THREE.Group();bodyMats=[];
+   [[C.north,sg],[C.sblue,-sg]].forEach(function(o){var mt=track(new THREE.MeshBasicMaterial({color:o[0],transparent:true,opacity:S.bodyOp/100,depthWrite:false}));bodyMats.push(mt);
+    var bx=new THREE.Mesh(track(new THREE.BoxGeometry(LEN/2,2*R,2*R)),mt);bx.position.x=o[1]*LEN/4;bodyMesh.add(bx)});
+   grp.add(bodyMesh)}
+  else if(!loop){bodyMesh=new THREE.Mesh(track(new THREE.CylinderGeometry(R,R,LEN,64,1,true)),bm);bodyMesh.rotation.z=Math.PI/2;bodyMats=[bm];grp.add(bodyMesh)}}
  
  var tr=wire?null:getTraces(),radii=[],xs=[];
  if(wire){for(var i=0;i<S.lines;i++)radii.push(WIRE_R1+WIRE_G1*(Math.pow(WIRE_GR,i)-1)/(WIRE_GR-1));for(var p=0;p<S.planes;p++)xs.push((p-(S.planes-1)/2)*gap)}
@@ -203,10 +210,10 @@ function build(){
     Ống dây: từ trường trong ống là đều nên bỏ các kim rải theo đường sức nằm trong ống, thay bằng lưới kim thẳng hàng
     theo cột (dọc trục) và hàng (theo bán kính), mọi kim cùng chiều dọc trục. */
  var mL=[],tQ=new THREE.Quaternion(),tM=new THREE.Matrix4(),tS=new V3(1,1,1),tOff=new V3();
- var inBody=function(P){return S.mode==='coil'&&Math.abs(P.x)<LEN/2&&Math.hypot(P.y,P.z)<R};
+ var inBody=function(P){return isSol()&&Math.abs(P.x)<LEN/2&&Math.hypot(P.y,P.z)<R};
  curves.forEach(function(c){var n=clamp(Math.round(c.len/1.3),c.closed?4:3,18);
   for(var j=0;j<n;j++){var uu=(j+.5)/n,P=c.cv.getPointAt(uu);if(inBody(P))continue;mL.push([P,c.cv.getTangentAt(uu).normalize()])}});
- if(S.mode==='coil'){
+ if(isSol()){
   var nCol=Math.max(3,Math.round(LEN/1.1)),fr=S.planes>2?[-.7,0,.7]:[-.75,-.375,0,.375,.75],dirIn=new V3(S.sgn,0,0);
   for(var cI=0;cI<nCol;cI++){var gx=-LEN/2+(cI+.5)*LEN/nCol;
    fr.forEach(function(f){
@@ -223,7 +230,7 @@ function build(){
  var per=10;fph=[];for(var i2=0;i2<curves.length*per;i2++)fph.push((i2%per)/per);fa=new Float32Array(fph.length*3);
  var g3=track(new THREE.BufferGeometry());g3.setAttribute('position',new THREE.BufferAttribute(fa,3));
  fP=new THREE.Points(g3,track(new THREE.PointsMaterial({color:C.flow,size:5,sizeAttenuation:false})));fP.frustumCulled=false;grp.add(fP);
- cCurve=new THREE.CatmullRomCurve3(sg>0?wpts.slice():wpts.slice().reverse(),loop);cLen=Math.max(.1,cCurve.getLength());cN=Math.max(4,Math.min(40,Math.round(cLen)));
+ var cpts=wpts.length>1?wpts:[new V3(-1,0,0),new V3(1,0,0)];cCurve=new THREE.CatmullRomCurve3(sg>0?cpts.slice():cpts.slice().reverse(),loop);cLen=Math.max(.1,cCurve.getLength());cN=Math.max(4,Math.min(40,Math.round(cLen)));
  cph=[];for(var i3=0;i3<cN;i3++)cph.push(i3/cN);ca=new Float32Array(cN*3);
  var g4=track(new THREE.SphereGeometry(.075,16,12));
  cP=new THREE.InstancedMesh(g4,track(new THREE.MeshPhongMaterial({color:C.cur,shininess:60})),cN);cP.frustumCulled=false;grp.add(cP);
@@ -243,7 +250,7 @@ function build(){
  var rg=track(new THREE.BufferGeometry());rg.setAttribute('position',new THREE.BufferAttribute(rLinePos,3));
  rLine=new THREE.Line(rg,track(new THREE.LineDashedMaterial({color:C.bvec,dashSize:.12,gapSize:.09})));rLine.frustumCulled=false;grp.add(rLine);
  
- buildScrew();snapN=true;placeProbe();applyVis()
+ if(mag){screw.root=null;screw.spin=null}else buildScrew();snapN=true;placeProbe();applyVis()
 }
 
 function placeProbe(){
@@ -267,9 +274,9 @@ function placeProbe(){
 
 function applyVis(){
  if(!grp)return;var wire=S.mode==='wire';
- gAC.visible=S.arrC;gAF.visible=S.arrF;gMass.visible=S.massN;fP.visible=S.pF;cP.visible=S.pC;
+ gAC.visible=S.arrC;gAF.visible=S.arrF;gMass.visible=S.massN;fP.visible=S.pF;cP.visible=S.pC&&S.mode!=='magnet';
  planeSets.forEach(function(p){p.g.visible=S.showPlane;p.h.visible=S.halo;p.f.visible=!S.halo;p.m.forEach(function(m){m.opacity=S.planeOp/100})});
- if(bodyMesh){bodyMesh.visible=S.body;bodyMesh.material.opacity=S.bodyOp/100}
+ if(bodyMesh){bodyMesh.visible=S.body;bodyMats.forEach(function(m){m.opacity=S.bodyOp/100})}
  needle.visible=S.needle;bShaft.visible=bHead.visible=dot.visible=S.bvec;rLine.visible=S.bvec&&wire;
  $('pN').hidden=$('pS').hidden=wire||!S.poles;$('nN').hidden=$('nS').hidden=!(S.needle&&S.nlbl);$('lblB').hidden=!S.bvec;$('lblI').hidden=!wire;placeProbe()
 }
@@ -453,6 +460,9 @@ var tl=new V3(),an=new V3();
 function place(el,vec){if(el.hidden)return;tl.copy(vec).project(camera);if(tl.z>1){el.style.visibility='hidden';return}el.style.visibility='visible';
  el.style.transform='translate('+((tl.x*.5+.5)*stage.clientWidth-el.offsetWidth/2).toFixed(1)+'px,'+((-tl.y*.5+.5)*stage.clientHeight-el.offsetHeight/2).toFixed(1)+'px) scale('+clamp(Math.pow(camera.position.length()/camera.position.distanceTo(vec),1.6),.5,1.9).toFixed(3)+')';el.style.zIndex=String(Math.round((1-tl.z)*1000))}
 /* ---------- Bảng điều khiển ---------- */
+function fmtI(x){return S.mode==='magnet'?Math.round(x/2*100)+' %':x.toFixed(1)+' A'}
+function fmtT(x){return S.mode==='magnet'?(x*PITCH/2).toFixed(1)+' × bề rộng':String(x)}
+function setI(){sb()}
 function fmtB(T){return Math.abs(T)>=1e-3?(T*1e3).toFixed(2)+' mT':(T*1e6).toFixed(1)+' µT'}
 function refresh(){$('kR').textContent=fmtB(bn);$('kBn').textContent=fmtB(bnN);
  if(S.mode!=='wire')$('kBc').textContent=fmtB(2e-5*S.I*effN()*field(0,1e-4)[1])}
@@ -460,11 +470,16 @@ function sb(){try{build();refresh()}catch(e){var f=$('fallback');f.hidden=false;
 var TXT={
  wire:{ttl:'Đường sức từ của dòng điện thẳng',desc:'Tác giả: Hoàng Văn Tuấn - Trường THPT Thanh Đa - TP. Hồ Chí Minh',a:'Sang phải (+x)',b:'Sang trái (−x)',note:'Ngón cái chỉ chiều I, bốn ngón khum lại chỉ chiều B.',d:22},
  loop:{ttl:'Từ trường của dòng điện tròn',desc:'Tác giả: Hoàng Văn Tuấn - Trường THPT Thanh Đa - TP. Hồ Chí Minh',a:'Ngược chiều kim đồng hồ',b:'Cùng chiều kim đồng hồ',note:'Chiều quay tính khi nhìn từ phía +x (bên phải). Mặt vòng dây có đường sức đi ra là cực N.',d:15,body:'Mặt vòng dây',bc:'B tại tâm vòng'},
- coil:{ttl:'Từ trường của ống dây có dòng điện',desc:'Tác giả: Hoàng Văn Tuấn - Trường THPT Thanh Đa - TP. Hồ Chí Minh',a:'Ngược chiều kim đồng hồ',b:'Cùng chiều kim đồng hồ',note:'Chiều quay tính khi nhìn từ đầu bên phải (+x) của ống. Đầu có đường sức đi ra là cực N.',d:18,body:'Thân ống',bc:'B tại tâm ống'}};
+ coil:{ttl:'Từ trường của ống dây có dòng điện',desc:'Tác giả: Hoàng Văn Tuấn - Trường THPT Thanh Đa - TP. Hồ Chí Minh',a:'Ngược chiều kim đồng hồ',b:'Cùng chiều kim đồng hồ',note:'Chiều quay tính khi nhìn từ đầu bên phải (+x) của ống. Đầu có đường sức đi ra là cực N.',d:18,body:'Thân ống',bc:'B tại tâm ống'},
+ magnet:{ttl:'Từ trường của nam châm thẳng',desc:'Tác giả: Hoàng Văn Tuấn - Trường THPT Thanh Đa - TP. Hồ Chí Minh',a:'Cực N bên phải (+x)',b:'Cực N bên trái (−x)',note:'Ngoài nam châm, đường sức đi ra từ cực N và đi vào cực S, giống hệt ống dây. Bên trong nam châm, đường sức đi từ cực S đến cực N để khép kín.',d:18,body:'Thân nam châm',bc:'B tại tâm nam châm'}};
 function pr(id,on){$(id).setAttribute('aria-pressed',on?'true':'false')}
 function setMode(m){S.mode=m;var x=TXT[m];document.title=x.ttl;$('ttl').textContent=x.ttl;$('desc').textContent=x.desc;$('dirA').textContent=x.a;$('dirB').textContent=x.b;$('dirNote').textContent=x.note;
  Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'),function(b){b.setAttribute('aria-pressed',b.dataset.mode===m?'true':'false')});
- S.planes=S.pm[m];$('rPW').value=S.planes;$('oPW').textContent=S.planes;$('plNote').textContent=m==='wire'?'Mỗi mặt phẳng vuông góc với dây, xếp dọc theo dây.':'Các mặt phẳng chứa trục, xoay đều quanh trục.';$('rowT').hidden=m!=='coil';$('rowBody').style.display=$('rowBO').style.display=m==='loop'?'none':'';$('bodyBox').hidden=m==='wire';$('kvC').hidden=m==='wire';
+ S.planes=S.pm[m];$('rPW').value=S.planes;$('oPW').textContent=S.planes;$('plNote').textContent=m==='wire'?'Mỗi mặt phẳng vuông góc với dây, xếp dọc theo dây.':'Các mặt phẳng chứa trục, xoay đều quanh trục.';$('rowT').hidden=!(m==='coil'||m==='magnet');$('rowBody').style.display=$('rowBO').style.display=m==='loop'?'none':'';$('bodyBox').hidden=m==='wire';$('kvC').hidden=m==='wire';
+ var mg=m==='magnet',pc=function(id,on){var e=$(id).parentNode;e.style.display=on?'':'none'};
+ $('hCur').textContent=mg?'Cực từ':'Dòng điện';$('lI').textContent=mg?'Độ mạnh từ trường':'Cường độ I';$('lT').textContent=mg?'Chiều dài nam châm':'Số vòng dây N';
+ $('oI').textContent=fmtI(S.I);$('oT').textContent=fmtT(S.turns);pc('cAC',!mg);pc('cPC',!mg);$('secScrew').style.display=mg?'none':'';
+ S.bodyOp=mg?40:70;$('rBO').value=S.bodyOp;$('oBO').textContent=S.bodyOp+'%';
  if(x.body){$('lBody').textContent='Hiện '+x.body.toLowerCase();$('kBcL').textContent=x.bc}
  S.lines=S.lm[m];$('shapeBox').hidden=m!=='wire';
  S.scrX=0;var pd=PROBE[m];S.pl=pd.pl;S.pu=pd.pu;S.nl=pd.nl;S.nu=pd.nu;resetView('0');sb()}
@@ -475,7 +490,7 @@ function bindR(id,key,out,fmt,mode){var el=$(id),o=$(out);function u(){S[key]=pa
 function bindC(id,key,after){var el=$(id);el.checked=!!S[key];el.addEventListener('change',function(){S[key]=el.checked;if(after)after(el.checked);applyVis()})}
 function link(arrId,partId,arrKey,partKey){return function(on){S[partKey]=!on;$(partId).checked=!on}}
 (function(){var el=$('rPW'),o=$('oPW');el.addEventListener('input',function(){S.planes=S.pm[S.mode]=parseInt(el.value,10);o.textContent=S.planes;sb()});o.textContent=el.value})();
-bindR('rI','I','oI',function(x){return x.toFixed(1)+' A'},'I');bindR('rT','turns','oT',String,'b');
+bindR('rI','I','oI',fmtI,'I');bindR('rT','turns','oT',fmtT,'b');
 bindR('rPO','planeOp','oPO',function(x){return x+'%'});bindR('rBO','bodyOp','oBO',function(x){return x+'%'});
 bindC('cAC','arrC',link('cAC','cPC','arrC','pC'));bindC('cAF','arrF',link('cAF','cPF','arrF','pF'));bindC('cPC','pC');bindC('cPF','pF');bindC('cFU','fUni');
 bindR('rSpin','scrSpin','oSpin',function(x){return x.toFixed(1)+' vòng/s'});bindR('rPitch','scrPitch','oPitch',function(x){return x.toFixed(2)},'b');bindC('cScrew','scrOn');bindC('cNLbl','nlbl');bindC('cAdv','scrAdv');
