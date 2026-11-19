@@ -45,6 +45,7 @@
 <section class="group"><h2>Mặt phẳng và vật thể</h2>
 <label class="check"><input type="checkbox" id="cPlane" checked><span>Hiện mặt phẳng</span></label>
 <div class="seg"><button type="button" id="pmHalo" aria-pressed="true">Quầng theo B</button><button type="button" id="pmFull" aria-pressed="false">Hiện đầy đủ</button></div>
+<div class="seg" id="shapeBox"><button type="button" id="shCircle" aria-pressed="true">Đĩa tròn</button><button type="button" id="shSquare" aria-pressed="false">Tấm vuông</button></div>
 <div class="row"><div class="top"><label for="rPO">Độ mờ đục mặt phẳng</label><output id="oPO"></output></div><input type="range" id="rPO" min="0" max="100" step="5" value="45"></div>
 <div id="bodyBox" class="group"><label class="check"><input type="checkbox" id="cBody" checked><span id="lBody">Hiện thân ống</span></label>
 <div class="row"><div class="top"><label for="rBO">Độ mờ đục</label><output id="oBO"></output></div><input type="range" id="rBO" min="0" max="100" step="5" value="15"></div>
@@ -75,7 +76,7 @@ var V3=THREE.Vector3,UP=new V3(0,1,0);
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setClearColor(0,0);
 var scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(38,1,.1,300);
 var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-var S={mode:'coil',sgn:1,I:2,turns:8,lines:2,planes:1,pm:{wire:1,loop:1,coil:1},massN:false,showPlane:true,halo:true,planeOp:45,arrC:true,arrF:true,pC:false,pF:false,
+var S={mode:'coil',sgn:1,I:2,turns:8,lines:2,lm:{wire:6,loop:2,coil:2},shape:'circle',planes:1,pm:{wire:1,loop:1,coil:1},massN:false,showPlane:true,halo:true,planeOp:45,arrC:true,arrF:true,pC:false,pF:false,
  body:true,bodyOp:15,poles:true,needle:true,bvec:true,auto:false,roll:0,pl:1,pu:.5,nl:2,nu:.3,scrOn:true,scrAdv:true,scrSpin:1.2,scrPitch:.4,scrSize:1,nlbl:true};
 if(reduce){S.pC=S.pF=false}
 function clamp(x,a,b){return Math.max(a,Math.min(b,x))}
@@ -143,13 +144,13 @@ function build(){
  grp=new THREE.Group();scene.add(grp);
  
  if(!scene.userData.l){scene.add(new THREE.AmbientLight(0xffffff,.6));var dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(5,10,15);scene.add(dl);scene.userData.l=1}
- var gap=1.3,Wh=((S.planes-1)/2*gap+3)*2.3375-(1.7+.14+.36)*S.scrSize/2, /* dây ngắn hơn đúng bằng chiều dài đinh ốc (thân 1,7 + mũ 0,14 + mũi 0,36) */wm=track(new THREE.MeshPhongMaterial({color:C.copper,specular:0xf0b48a,shininess:90}));
+ var gap=1.3,Wh=(S.planes-1)/2*gap+(3*2.3375-.3*(S.planes-1))-(1.7+.14+.36)*S.scrSize/2, /* phần dây nhô ra ngoài mặt phẳng ngoài cùng: 7,01 khi 1 mặt phẳng, bớt 0,3 cho mỗi mặt phẳng thêm (8 mặt phẳng còn 4,91) */ /* dây ngắn hơn đúng bằng chiều dài đinh ốc (thân 1,7 + mũ 0,14 + mũi 0,36) */wm=track(new THREE.MeshPhongMaterial({color:C.copper,specular:0xf0b48a,shininess:90}));
  gAC=new THREE.Group();grp.add(gAC);wpts=[];
  if(wire){
   // Dây thẳng đặt nằm ngang (dọc theo trục X)
   half=Wh;var cyl=new THREE.Mesh(track(new THREE.CylinderGeometry(.05,.05,2*Wh,20)),wm);cyl.rotation.z=Math.PI/2;grp.add(cyl);
   for(var k=0;k<=40;k++)wpts.push(new V3(-Wh+2*Wh*k/40,0,0));
-  [-1,1].forEach(function(i){addCone(gAC,new V3(i*Wh*.5,0,0),new V3(sg,0,0),coneBig,wm)});
+  [-1,1].forEach(function(i){addCone(gAC,new V3(i*((S.planes-1)/2*gap+(Wh-(S.planes-1)/2*gap)*.5),0,0),new V3(sg,0,0),coneBig,wm)});
   aI.set(sg*(Wh-.5),.3,0)}
  else if(loop){half=.2;for(var c0=0;c0<96;c0++){var ph=c0/96*TAU;wpts.push(new V3(0,R*Math.cos(ph),R*Math.sin(ph)))}
   grp.add(new THREE.Mesh(track(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(wpts,true),160,.055,10,true)),wm));
@@ -169,9 +170,9 @@ function build(){
  function mkPlane(g,geoH,geoF,key,fn){var hm=track(new THREE.MeshBasicMaterial({map:haloTex(key,fn,192),transparent:true,side:THREE.DoubleSide,depthWrite:false}));
   var fm=track(new THREE.MeshBasicMaterial({color:C.body,transparent:true,side:THREE.DoubleSide,depthWrite:false}));
   var aA=new THREE.Mesh(geoH,hm),bB=new THREE.Mesh(geoF,fm);g.add(aA);g.add(bB);planeSets.push({g:g,h:aA,f:bB,m:[hm,fm]});grp.add(g)}
- if(wire){RH=radii[radii.length-1]+.9;var gd=track(new THREE.CircleGeometry(RH,96));
-  var wf=function(u,v){var q=Math.hypot(u,v),r=q*RH;if(q>=1)return 0;return Math.pow(Math.min(1,20*S.I/Math.sqrt(r*r+.25)/(200/1.2)),.5)*edge(q,.7)};
-  xs.forEach(function(x){var g=new THREE.Group();g.position.x=x;g.rotation.y=Math.PI/2;mkPlane(g,gd,gd,'w|'+S.I+'|'+RH+'|'+C.body,wf)})}
+ if(wire){RH=radii[radii.length-1]+.9;var sq=S.shape==='square',gd=track(sq?new THREE.PlaneGeometry(2*RH,2*RH):new THREE.CircleGeometry(RH,96));
+  var wf=function(u,v){var q=sq?Math.max(Math.abs(u),Math.abs(v)):Math.hypot(u,v),r=Math.hypot(u,v)*RH;if(q>=1)return 0;return Math.pow(Math.min(1,20*S.I/Math.sqrt(r*r+.25)/(200/1.2)),.5)*edge(q,.7)};
+  xs.forEach(function(x){var g=new THREE.Group();g.position.x=x;g.rotation.y=Math.PI/2;mkPlane(g,gd,gd,'w|'+S.I+'|'+RH+'|'+C.body+'|'+S.shape,wf)})}
  else{function fit(x,r){W=Math.max(W,Math.abs(x));H=Math.max(H,Math.abs(r))}
   tr.axis.pts.forEach(function(q){fit(q[0],q[1])});tr.list.forEach(function(l){l.pts.forEach(function(q){fit(q[0],q[1])})});
   W=Math.max(W,LEN/2+1)*1.03;H=Math.max(H,1.5)*1.03;
@@ -444,6 +445,7 @@ function setMode(m){S.mode=m;var x=TXT[m];document.title=x.ttl;$('ttl').textCont
  Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'),function(b){b.setAttribute('aria-pressed',b.dataset.mode===m?'true':'false')});
  S.planes=S.pm[m];$('rPW').value=S.planes;$('oPW').textContent=S.planes;$('plNote').textContent=m==='wire'?'Mỗi mặt phẳng vuông góc với dây, xếp dọc theo dây.':'Các mặt phẳng chứa trục, xoay đều quanh trục.';$('rowT').hidden=m!=='coil';$('bodyBox').hidden=m==='wire';$('kvC').hidden=m==='wire';
  if(x.body){$('lBody').textContent='Hiện '+x.body.toLowerCase();$('kBcL').textContent=x.bc}
+ S.lines=S.lm[m];$('rL').value=S.lines;$('oL').textContent=S.lines;$('shapeBox').hidden=m!=='wire';
  S.pl=1;S.pu=.5;S.nl=2;S.nu=.3;resetView('0');sb()}
 function setDir(s){S.sgn=s;pr('dirA',s>0);pr('dirB',s<0);sb()}
 function bindR(id,key,out,fmt,mode){var el=$(id),o=$(out);function u(){S[key]=parseFloat(el.value);o.textContent=fmt(S[key])}
@@ -460,6 +462,9 @@ bindC('cPlane','showPlane');bindC('cBody','body');bindC('cPoles','poles');bindC(
 $('cPC').checked=S.pC;$('cPF').checked=S.pF;
 $('pmHalo').addEventListener('click',function(){S.halo=true;pr('pmHalo',1);pr('pmFull',0);applyVis()});
 $('pmFull').addEventListener('click',function(){S.halo=false;pr('pmHalo',0);pr('pmFull',1);applyVis()});
+$('rL').addEventListener('input',function(){S.lm[S.mode]=S.lines});
+$('shCircle').addEventListener('click',function(){S.shape='circle';pr('shCircle',1);pr('shSquare',0);sb()});
+$('shSquare').addEventListener('click',function(){S.shape='square';pr('shCircle',0);pr('shSquare',1);sb()});
 $('dirA').addEventListener('click',function(){setDir(1)});$('dirB').addEventListener('click',function(){setDir(-1)});
 Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'),function(b){b.addEventListener('click',function(){if(S.mode!==b.dataset.mode)setMode(b.dataset.mode)})});
 Array.prototype.forEach.call(document.querySelectorAll('[data-view]'),function(b){b.addEventListener('click',function(){
