@@ -34,7 +34,6 @@
 <div class="row"><div class="top"><label for="rI">Cường độ I</label><output id="oI"></output></div><input type="range" id="rI" min="0.5" max="10" step="0.5" value="2"></div>
 <div class="row" id="rowT"><div class="top"><label for="rT">Số vòng dây N</label><output id="oT"></output></div><input type="range" id="rT" min="4" max="14" step="1" value="8"></div></section>
 <section class="group"><h2>Đường sức</h2>
-<div class="row"><div class="top"><label for="rL">Số đường sức</label><output id="oL"></output></div><input type="range" id="rL" min="1" max="7" step="1" value="2"></div>
 <div class="row" id="plW"><div class="top"><label for="rPW">Số mặt phẳng chứa đường sức</label><output id="oPW"></output></div><input type="range" id="rPW" min="1" max="8" step="1" value="1"></div>
 <p class="note" id="plNote"></p></section>
 <section class="group"><h2>Mũi tên và hạt chạy</h2>
@@ -47,8 +46,8 @@
 <div class="seg"><button type="button" id="pmHalo" aria-pressed="true">Quầng theo B</button><button type="button" id="pmFull" aria-pressed="false">Hiện đầy đủ</button></div>
 <div class="seg" id="shapeBox"><button type="button" id="shCircle" aria-pressed="true">Đĩa tròn</button><button type="button" id="shSquare" aria-pressed="false">Tấm vuông</button></div>
 <div class="row"><div class="top"><label for="rPO">Độ mờ đục mặt phẳng</label><output id="oPO"></output></div><input type="range" id="rPO" min="0" max="100" step="5" value="45"></div>
-<div id="bodyBox" class="group"><label class="check"><input type="checkbox" id="cBody" checked><span id="lBody">Hiện thân ống</span></label>
-<div class="row"><div class="top"><label for="rBO">Độ mờ đục</label><output id="oBO"></output></div><input type="range" id="rBO" min="0" max="100" step="5" value="15"></div>
+<div id="bodyBox" class="group"><label class="check" id="rowBody"><input type="checkbox" id="cBody" checked><span id="lBody">Hiện thân ống</span></label>
+<div class="row" id="rowBO"><div class="top"><label for="rBO">Độ mờ đục</label><output id="oBO"></output></div><input type="range" id="rBO" min="0" max="100" step="5" value="70"></div>
 <label class="check"><input type="checkbox" id="cPoles" checked><span>Ghi tên cực N, S</span></label></div></section>
 <section class="group"><h2>Đinh ốc (quy tắc vặn nút chai)</h2>
 <label class="check"><input type="checkbox" id="cScrew" checked><span>Hiện đinh ốc<small>Dây thẳng: tiến theo chiều I thì quay theo chiều B. Vòng dây, ống dây: quay theo chiều I thì tiến theo chiều B dọc trục.</small></span></label>
@@ -76,10 +75,12 @@ var V3=THREE.Vector3,UP=new V3(0,1,0);
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));renderer.setClearColor(0,0);
 var scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(38,1,.1,300);
 var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-var S={mode:'coil',sgn:1,I:2,turns:8,lines:2,lm:{wire:6,loop:2,coil:2},shape:'circle',planes:1,pm:{wire:1,loop:1,coil:1},massN:false,showPlane:true,halo:true,planeOp:45,arrC:true,arrF:true,pC:false,pF:false,
- body:true,bodyOp:15,poles:true,needle:true,bvec:true,auto:false,roll:0,pl:1,pu:.5,nl:2,nu:.3,scrOn:true,scrAdv:true,scrSpin:1.2,scrPitch:.4,scrSize:1,nlbl:true};
+var S={mode:'coil',sgn:1,I:2,turns:8,lines:2,lm:{wire:6,loop:7,coil:7},shape:'circle',planes:1,pm:{wire:1,loop:1,coil:1},massN:false,showPlane:true,halo:true,planeOp:45,arrC:true,arrF:true,pC:false,pF:false,
+ body:true,bodyOp:70,poles:true,needle:true,bvec:true,auto:false,roll:0,pl:1,pu:.5,nl:2,nu:.3,scrOn:true,scrAdv:true,scrSpin:1.2,scrPitch:.4,scrSize:1,nlbl:true};
 if(reduce){S.pC=S.pF=false}
 function clamp(x,a,b){return Math.max(a,Math.min(b,x))}
+/* Vị trí mặc định của điểm M (véc tơ B) và nam châm thử: pl/nl = chỉ số đường sức, pu/nu = vị trí dọc đường (0..1). Dây thẳng: chỉ số lớn hơn số đường sức đang có sẽ tự lùi về đường ngoài cùng. */
+var PROBE={wire:{pl:6,pu:.896,nl:6,nu:.824},loop:{pl:5,pu:.556,nl:5,nu:.428},coil:{pl:5,pu:.569,nl:5,nu:.405}};
 /* ---------- Vật lý (vòng dây / ống dây) ---------- */
 var GLX=[-.8611363115940526,-.3399810435848563,.3399810435848563,.8611363115940526],GLW=[.3478548451374538,.6521451548625461,.6521451548625461,.3478548451374538];
 var zq=[],wq=[],LEN=4.4,quadKey='';
@@ -110,7 +111,8 @@ function traceLine(x0,r0,s){var P0=field(x0,r0)[0],x=x0,r=r0,pts=[[x,r]],closed=
  return{pts:pts,closed:closed}}
 function meridian(rho){var f=traceLine(0,rho,S.sgn),pts=f.pts;if(!f.closed){var b=traceLine(0,rho,-S.sgn).pts;b.reverse();pts=b.concat(f.pts.slice(1))}return{pts:pts,closed:f.closed}}
 function prof(pts){var o=[],n=48;for(var i=0;i<n;i++){var p=pts[Math.min(pts.length-1,Math.floor(i/n*pts.length))],f=field(p[0],Math.max(p[1],1e-4));o.push(Math.hypot(f[1],f[2]))}return o}
-var RHO={1:[.7],2:[.55,.85],3:[.45,.7,.88],4:[.4,.6,.78,.9],5:[.3,.5,.65,.8,.92],6:[.25,.4,.55,.7,.82,.94],7:[.2,.35,.48,.6,.72,.85,.95]};
+/* Ống dây: từ trường trong ống là đều nên các đường sức xuất phát từ mặt phẳng giữa (x = 0) cách đều nhau: rho_k = rho_max*k/n (đường k = 0 là trục). rho_max là bán kính đường ngoài cùng ứng với n đường. */
+var RHO={};[.7,.85,.88,.9,.92,.94,.95].forEach(function(mx,i){var n=i+1,a=[];for(var k=1;k<=n;k++)a.push(Math.round(mx*k/n*1e4)/1e4);RHO[n]=a});
 function loopRhos(n){var o=[];for(var k=0;k<n;k++)o.push(.9*(k+1)/(n+1));return o}
 var trKey='',trs=null;
 function getTraces(){var key=[S.mode,S.turns,S.sgn,S.lines].join('|');if(key===trKey&&trs)return trs;
@@ -157,12 +159,11 @@ function build(){
   for(var a=0;a<4;a++){var p2=(a+.5)*Math.PI/2;addCone(gAC,new V3(0,R*Math.cos(p2),R*Math.sin(p2)),new V3(0,-Math.sin(p2),Math.cos(p2)).multiplyScalar(sg),coneBig,wm)}}
  else{half=LEN/2;for(var h=0;h<=S.turns*24;h++)wpts.push(helixPt(S.turns,h/(S.turns*24)));
   grp.add(new THREE.Mesh(track(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(wpts),S.turns*48,.045,8)),wm));
-  for(var t=0;t<S.turns;t++){var u=(t+.25)/S.turns,ph2=u*S.turns*TAU;addCone(gAC,helixPt(S.turns,u),new V3(PITCH/TAU,-R*Math.sin(ph2),R*Math.cos(ph2)).normalize().multiplyScalar(sg),coneBig,wm)}}
+  for(var t=0;t<S.turns;t++)[.25,.75].forEach(function(o){var u=(t+o)/S.turns,ph2=u*S.turns*TAU;addCone(gAC,helixPt(S.turns,u),new V3(PITCH/TAU,-R*Math.sin(ph2),R*Math.cos(ph2)).normalize().multiplyScalar(sg),coneBig,wm)})}
  
  bodyMesh=null;
  if(!wire){var bm=track(new THREE.MeshBasicMaterial({color:C.body,transparent:true,opacity:S.bodyOp/100,side:THREE.DoubleSide,depthWrite:false}));
-  if(loop){bodyMesh=new THREE.Mesh(track(new THREE.CircleGeometry(R,64)),bm);bodyMesh.rotation.y=Math.PI/2}
-  else{bodyMesh=new THREE.Mesh(track(new THREE.CylinderGeometry(R,R,LEN,64,1,true)),bm);bodyMesh.rotation.z=Math.PI/2}grp.add(bodyMesh)}
+  if(!loop){bodyMesh=new THREE.Mesh(track(new THREE.CylinderGeometry(R,R,LEN,64,1,true)),bm);bodyMesh.rotation.z=Math.PI/2;grp.add(bodyMesh)}}
  
  var tr=wire?null:getTraces(),radii=[],xs=[];
  if(wire){for(var i=0;i<S.lines;i++)radii.push(WIRE_R1+WIRE_G1*(Math.pow(WIRE_GR,i)-1)/(WIRE_GR-1));for(var p=0;p<S.planes;p++)xs.push((p-(S.planes-1)/2)*gap)}
@@ -443,10 +444,10 @@ var TXT={
 function pr(id,on){$(id).setAttribute('aria-pressed',on?'true':'false')}
 function setMode(m){S.mode=m;var x=TXT[m];document.title=x.ttl;$('ttl').textContent=x.ttl;$('desc').textContent=x.desc;$('dirA').textContent=x.a;$('dirB').textContent=x.b;$('dirNote').textContent=x.note;
  Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'),function(b){b.setAttribute('aria-pressed',b.dataset.mode===m?'true':'false')});
- S.planes=S.pm[m];$('rPW').value=S.planes;$('oPW').textContent=S.planes;$('plNote').textContent=m==='wire'?'Mỗi mặt phẳng vuông góc với dây, xếp dọc theo dây.':'Các mặt phẳng chứa trục, xoay đều quanh trục.';$('rowT').hidden=m!=='coil';$('bodyBox').hidden=m==='wire';$('kvC').hidden=m==='wire';
+ S.planes=S.pm[m];$('rPW').value=S.planes;$('oPW').textContent=S.planes;$('plNote').textContent=m==='wire'?'Mỗi mặt phẳng vuông góc với dây, xếp dọc theo dây.':'Các mặt phẳng chứa trục, xoay đều quanh trục.';$('rowT').hidden=m!=='coil';$('rowBody').style.display=$('rowBO').style.display=m==='loop'?'none':'';$('bodyBox').hidden=m==='wire';$('kvC').hidden=m==='wire';
  if(x.body){$('lBody').textContent='Hiện '+x.body.toLowerCase();$('kBcL').textContent=x.bc}
- S.lines=S.lm[m];$('rL').value=S.lines;$('oL').textContent=S.lines;$('shapeBox').hidden=m!=='wire';
- S.pl=1;S.pu=.5;S.nl=2;S.nu=.3;resetView('0');sb()}
+ S.lines=S.lm[m];$('shapeBox').hidden=m!=='wire';
+ var pd=PROBE[m];S.pl=pd.pl;S.pu=pd.pu;S.nl=pd.nl;S.nu=pd.nu;resetView('0');sb()}
 function setDir(s){S.sgn=s;pr('dirA',s>0);pr('dirB',s<0);sb()}
 function bindR(id,key,out,fmt,mode){var el=$(id),o=$(out);function u(){S[key]=parseFloat(el.value);o.textContent=fmt(S[key])}
  el.addEventListener('input',function(){u();if(mode==='I')setI(S.I);else if(mode!=='b'){applyVis();refresh()}});
@@ -454,7 +455,7 @@ function bindR(id,key,out,fmt,mode){var el=$(id),o=$(out);function u(){S[key]=pa
 function bindC(id,key,after){var el=$(id);el.checked=!!S[key];el.addEventListener('change',function(){S[key]=el.checked;if(after)after(el.checked);applyVis()})}
 function link(arrId,partId,arrKey,partKey){return function(on){S[partKey]=!on;$(partId).checked=!on}}
 (function(){var el=$('rPW'),o=$('oPW');el.addEventListener('input',function(){S.planes=S.pm[S.mode]=parseInt(el.value,10);o.textContent=S.planes;sb()});o.textContent=el.value})();
-bindR('rI','I','oI',function(x){return x.toFixed(1)+' A'},'I');bindR('rT','turns','oT',String,'b');bindR('rL','lines','oL',String,'b');
+bindR('rI','I','oI',function(x){return x.toFixed(1)+' A'},'I');bindR('rT','turns','oT',String,'b');
 bindR('rPO','planeOp','oPO',function(x){return x+'%'});bindR('rBO','bodyOp','oBO',function(x){return x+'%'});
 bindC('cAC','arrC',link('cAC','cPC','arrC','pC'));bindC('cAF','arrF',link('cAF','cPF','arrF','pF'));bindC('cPC','pC');bindC('cPF','pF');
 bindR('rSpin','scrSpin','oSpin',function(x){return x.toFixed(1)+' vòng/s'});bindR('rPitch','scrPitch','oPitch',function(x){return x.toFixed(2)},'b');bindC('cScrew','scrOn');bindC('cNLbl','nlbl');bindC('cAdv','scrAdv');
@@ -462,7 +463,6 @@ bindC('cPlane','showPlane');bindC('cBody','body');bindC('cPoles','poles');bindC(
 $('cPC').checked=S.pC;$('cPF').checked=S.pF;
 $('pmHalo').addEventListener('click',function(){S.halo=true;pr('pmHalo',1);pr('pmFull',0);applyVis()});
 $('pmFull').addEventListener('click',function(){S.halo=false;pr('pmHalo',0);pr('pmFull',1);applyVis()});
-$('rL').addEventListener('input',function(){S.lm[S.mode]=S.lines});
 $('shCircle').addEventListener('click',function(){S.shape='circle';pr('shCircle',1);pr('shSquare',0);sb()});
 $('shSquare').addEventListener('click',function(){S.shape='square';pr('shCircle',0);pr('shSquare',1);sb()});
 $('dirA').addEventListener('click',function(){setDir(1)});$('dirB').addEventListener('click',function(){setDir(-1)});
