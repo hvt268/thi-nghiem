@@ -168,7 +168,7 @@ function build(){
  if(!wire){var bm=track(new THREE.MeshBasicMaterial({color:C.body,transparent:true,opacity:S.bodyOp/100,side:THREE.DoubleSide,depthWrite:false}));
   if(mag){ /* thân nam châm: nửa cực N (đỏ) và nửa cực S (xanh), cực N ở phía B đi ra (+x khi sgn>0) */
    bodyMesh=new THREE.Group();bodyMats=[];
-   [[C.north,sg],[C.sblue,-sg]].forEach(function(o){var mt=track(new THREE.MeshBasicMaterial({color:o[0],transparent:true,opacity:S.bodyOp/100,depthWrite:false}));bodyMats.push(mt);
+   [[C.north,sg],[C.sblue,-sg]].forEach(function(o){var mt=track(new THREE.MeshBasicMaterial({color:o[0]}));bodyMats.push(mt);
     var bx=new THREE.Mesh(track(new THREE.BoxGeometry(LEN/2,2*R,2*R)),mt);bx.position.x=o[1]*LEN/4;bodyMesh.add(bx)});
    grp.add(bodyMesh)}
   else if(!loop){bodyMesh=new THREE.Mesh(track(new THREE.CylinderGeometry(R,R,LEN,64,1,true)),bm);bodyMesh.rotation.z=Math.PI/2;bodyMats=[bm];grp.add(bodyMesh)}}
@@ -475,11 +475,11 @@ var TXT={
 function pr(id,on){$(id).setAttribute('aria-pressed',on?'true':'false')}
 function setMode(m){S.mode=m;var x=TXT[m];document.title=x.ttl;$('ttl').textContent=x.ttl;$('desc').textContent=x.desc;$('dirA').textContent=x.a;$('dirB').textContent=x.b;$('dirNote').textContent=x.note;
  Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'),function(b){b.setAttribute('aria-pressed',b.dataset.mode===m?'true':'false')});
- S.planes=S.pm[m];$('rPW').value=S.planes;$('oPW').textContent=S.planes;$('plNote').textContent=m==='wire'?'Mỗi mặt phẳng vuông góc với dây, xếp dọc theo dây.':'Các mặt phẳng chứa trục, xoay đều quanh trục.';$('rowT').hidden=!(m==='coil'||m==='magnet');$('rowBody').style.display=$('rowBO').style.display=m==='loop'?'none':'';$('bodyBox').hidden=m==='wire';$('kvC').hidden=m==='wire';
+ S.planes=S.pm[m];$('rPW').value=S.planes;$('oPW').textContent=S.planes;$('plNote').textContent=m==='wire'?'Mỗi mặt phẳng vuông góc với dây, xếp dọc theo dây.':'Các mặt phẳng chứa trục, xoay đều quanh trục.';$('rowT').hidden=!(m==='coil'||m==='magnet');$('rowBody').style.display=m==='loop'?'none':'';$('rowBO').style.display=m==='loop'||m==='magnet'?'none':'';$('bodyBox').hidden=m==='wire';$('kvC').hidden=m==='wire';
  var mg=m==='magnet',pc=function(id,on){var e=$(id).parentNode;e.style.display=on?'':'none'};
  $('hCur').textContent=mg?'Cực từ':'Dòng điện';$('lI').textContent=mg?'Độ mạnh từ trường':'Cường độ I';$('lT').textContent=mg?'Chiều dài nam châm':'Số vòng dây N';
  $('oI').textContent=fmtI(S.I);$('oT').textContent=fmtT(S.turns);pc('cAC',!mg);pc('cPC',!mg);$('secScrew').style.display=mg?'none':'';
- S.bodyOp=mg?40:70;$('rBO').value=S.bodyOp;$('oBO').textContent=S.bodyOp+'%';
+ S.bodyOp=mg?100:70;$('rBO').value=S.bodyOp;$('oBO').textContent=S.bodyOp+'%';
  if(x.body){$('lBody').textContent='Hiện '+x.body.toLowerCase();$('kBcL').textContent=x.bc}
  S.lines=S.lm[m];$('shapeBox').hidden=m!=='wire';
  S.scrX=0;var pd=PROBE[m];S.pl=pd.pl;S.pu=pd.pu;S.nl=pd.nl;S.nu=pd.nu;resetView('0');sb()}
